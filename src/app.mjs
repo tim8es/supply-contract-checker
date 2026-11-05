@@ -256,3 +256,6 @@ $('export').addEventListener('click', () => {
   document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+
+// Reproducible browser smoke-test / demo link; never uploads user files.
+if (new URLSearchParams(window.location.search).get('demo') === '1') $('demo').click();
