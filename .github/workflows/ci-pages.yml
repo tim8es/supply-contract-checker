@@ -15,6 +15,47 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+      - name: Browser E2E — filter, citation, upload
+        run: node scripts/smoke-browser.mjs
+      - name: Browser smoke test — six documents and dynamic table
+        run: |
+          python3 -m http.server 5173 --bind 127.0.0.1 >/tmp/stn-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          sleep 2
+          CHROME="$(command -v google-chrome || command -v chromium)"
+          test -n "$CHROME"
+          "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
+            --user-data-dir="$(mktemp -d)" --virtual-time-budget=6000 \
+            --dump-dom 'http://127.0.0.1:5173/?demo=1' > /tmp/stn-dom.html 2>/tmp/stn-browser.log
+          grep -Fq 'STN-101' /tmp/stn-dom.html
+          grep -Fq 'STN-102' /tmp/stn-dom.html
+          grep -Fq 'STN-103' /tmp/stn-dom.html
+          grep -Fq 'Готово: 6 документов' /tmp/stn-dom.html
+          grep -Fq 'Нет данных' /tmp/stn-dom.html
+      - name: Produce UI screenshot for review
+        if: success() && github.event_name == 'pull_request'
+        run: |
+          python3 -m http.server 5173 --bind 127.0.0.1 >/tmp/stn-shot-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          sleep 2
+          mkdir -p artifacts
+          CHROME="$(command -v google-chrome || command -v chromium)"
+          "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
+            --user-data-dir="$(mktemp -d)" --window-size=1440,1080 --virtual-time-budget=6000 \
+            --screenshot=artifacts/ui.png 'http://127.0.0.1:5173/?demo=1' >/dev/null 2>/tmp/stn-shot.log
+          "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
+            --user-data-dir="$(mktemp -d)" --window-size=430,900 --virtual-time-budget=6000 \
+            --screenshot=artifacts/mobile.png 'http://127.0.0.1:5173/?demo=1' >/dev/null 2>/tmp/stn-mobile.log
+      - name: Upload UI screenshot
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-screenshot
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
   pages:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test

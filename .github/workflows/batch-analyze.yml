@@ -1,0 +1,56 @@
+name: Analyze synthetic contract batch
+run-name: Contract batch · ${{ inputs.as_of }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: 'Check date (YYYY-MM-DD)'
+        required: true
+        default: '2026-03-10'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout synthetic fixtures
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Analyze contracts
+        env:
+          AS_OF: ${{ inputs.as_of }}
+        run: |
+          node scripts/analyze.mjs --input documents --date "$AS_OF" --output artifacts/contracts.json
+      - name: Show result summary
+        run: |
+          node --input-type=module - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from 'node:fs';
+          const data = JSON.parse(readFileSync('artifacts/contracts.json', 'utf8'));
+          console.log('## Contract batch');
+          console.log('Date: ' + data.asOf);
+          console.log('Contracts: ' + data.contracts.length);
+          console.log('Issues: ' + data.issues.length);
+          console.log('');
+          console.log('| Contract | Amount (RUB) | Delivery | Review |');
+          console.log('|---|---:|---|---|');
+          for (const x of data.contracts) {
+            console.log('| ' + x.id + ' | ' + (x.amount?.value ?? 'нет данных') +
+              ' | ' + (x.deadline?.value ?? 'нет данных') +
+              ' | ' + (x.review.length ? 'проверить' : 'ок') + ' |');
+          }
+          NODE
+      - name: Export JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-results
+          path: artifacts/contracts.json
+          retention-days: 7
+          if-no-files-found: error
