@@ -38,3 +38,13 @@ test('batch refuses empty input directory', async () => {
   try { await assert.rejects(batch({input: dir, date:'2026-03-10'})); }
   finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('batch option enables sourced optional penalty rate without changing required fields', async () => {
+  const { snapshot } = await batch({input:'documents',date:'2026-03-10',withPenalty:true});
+  assert.equal(snapshot.contracts.length,3);
+  assert.equal(snapshot.contracts[0].extraFields.penaltyRate.value,0.1);
+  assert.equal(snapshot.contracts[1].extraFields.penaltyRate.value,0.05);
+  assert.equal(snapshot.contracts[2].extraFields.penaltyRate,null);
+  assert.equal(snapshot.contracts[0].amount.value,1380000);
+  assert.equal(argumentsFrom(['--with-penalty']).withPenalty,true);
+});
