@@ -83,9 +83,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p dist/src dist/documents
+          mkdir -p dist/src/extractors dist/documents
           cp index.html styles.css dist/
           cp src/*.mjs dist/src/
+          cp src/extractors/*.mjs dist/src/extractors/
           cp documents/*.txt dist/documents/
           touch dist/.nojekyll
       - uses: actions/configure-pages@v5
