@@ -43,6 +43,9 @@ jobs:
           "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
             --user-data-dir="$(mktemp -d)" --window-size=1440,1080 --virtual-time-budget=6000 \
             --screenshot=artifacts/ui.png 'http://127.0.0.1:5173/?demo=1' >/dev/null 2>/tmp/stn-shot.log
+          "$CHROME" --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
+            --user-data-dir="$(mktemp -d)" --window-size=430,900 --virtual-time-budget=6000 \
+            --screenshot=artifacts/mobile.png 'http://127.0.0.1:5173/?demo=1' >/dev/null 2>/tmp/stn-mobile.log
       - name: Upload UI screenshot
         if: success() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
