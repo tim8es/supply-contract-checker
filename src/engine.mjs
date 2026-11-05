@@ -94,7 +94,7 @@ function priceCandidates(doc, proposed) {
         // The old value in "с OLD рублей на NEW рублей" must never become
         // current value — even when this text is in a *signed* amendment.
         const transition = nums.find((candidate, index) => index > 0 &&
-          /\bна\s*$/iu.test(suffix.slice(0, candidate.index)));
+          /\sна\s*$/iu.test(suffix.slice(0, candidate.index)));
         const num = transition || (proposed ? nums.at(-1) : nums[0]);
         const value = parseMoney(num[0]);
         if (value === null) continue;
@@ -124,7 +124,7 @@ function deadlineCandidates(doc, proposed) {
     // "с OLD на NEW": date following "на" is the replacement regardless
     // of document status. A signed addendum may use the same wording as a letter.
     const transition = dates.find((candidate, index) => index > 0 &&
-      /\bна\s*$/iu.test(flat.slice(0, candidate.index)));
+      /\sна\s*$/iu.test(flat.slice(0, candidate.index)));
     const selected = transition || (proposed ? dates.at(-1) : dates[0]);
     found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
   }
