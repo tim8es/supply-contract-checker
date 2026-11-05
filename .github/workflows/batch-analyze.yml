@@ -28,7 +28,7 @@ jobs:
         env:
           AS_OF: ${{ inputs.as_of }}
         run: |
-          node scripts/analyze.mjs --input documents --date "$AS_OF" --output artifacts/contracts.json
+          node scripts/analyze.mjs --input documents --date "$AS_OF" --with-penalty --output artifacts/contracts.json
       - name: Show result summary
         run: |
           node --input-type=module - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
