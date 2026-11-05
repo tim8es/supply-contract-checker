@@ -108,6 +108,11 @@ async function main() {
     const normalizedTimeline = timeline.replace(/\s/gu, ' ');
     assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
+    await evaluate("document.querySelector('#rows tr:first-child td:nth-child(4) button').click()");
+    const penaltyProof=await evaluate("({value:document.querySelector('#inspect-content .fact-value')?.innerText,source:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText})");
+    assert(penaltyProof.source === '01_contract.txt', 'optional penalty evidence points at base contract');
+    assert(penaltyProof.value?.includes('0,1%') && penaltyProof.quote?.includes('0,1%'), 'optional term visible with daily rate');
+
 
     const uploaded = await evaluate(`(async()=>{
       const txt='ДОГОВОР ПОСТАВКИ № XYZ-234\\nСтатус: подписан обеими сторонами 01.03.2026.\\n\\nПоставщик: ООО «Новый поставщик».\\n\\nЦена договора: 654 321 рублей.\\nСрок поставки: 18.03.2026.';
