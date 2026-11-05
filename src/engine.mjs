@@ -4,14 +4,18 @@
  * Never infer missing terms, and never accept an amendment without explicit status + effective date.
  */
 const ID_RE = /\b[A-ZА-ЯЁ]{2,12}[-–]\d{2,12}\b/gu;
-const DATE_RE = /\b(?:\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b/gu;
+const DATE_RE = /\b(?:\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4}(?:\s*(?:года|г\.))?)/giu;
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const AMOUNT_RE = /(?<![\d])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{4,}|\d{1,3})(?:[,.]\d{2})?(?![\d])/gu;
 
 export function toIso(value) {
   if (!value) return null;
   const v = String(value);
   const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
-  const iso = m ? m[3] + '-' + m[2] + '-' + m[1] : v;
+  const words = /^(\d{1,2})\s+([а-яё]+)\s+(\d{4})(?:\s*(?:года|г\.))?$/iu.exec(v);
+  const month = words ? MONTHS.indexOf(words[2].toLocaleLowerCase('ru')) + 1 : 0;
+  const iso = m ? m[3] + '-' + m[2] + '-' + m[1] :
+    month ? words[3] + '-' + String(month).padStart(2, '0') + '-' + words[1].padStart(2, '0') : v;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   const date = new Date(iso + 'T00:00:00Z');
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null;
@@ -68,8 +72,8 @@ function priceCandidates(doc, proposed) {
   for (const block of doc.blocks) {
     const flat = normalize(block.text);
     const explicitProposal = /(?:предлагается|предлагаем|просим|проект)/iu.test(flat);
-    if (proposed && !explicitProposal) continue;
-    if (!proposed && /(?:предлагается|предлагаем|проект\s+изменения)/iu.test(flat)) continue;
+    if (proposed && !explicitProposal && !['draft','letter'].includes(doc.kind)) continue;
+    if (!proposed && (['draft','letter'].includes(doc.kind) || /(?:предлагается|предлагаем|проект\s+изменения)/iu.test(flat))) continue;
     if (/лимит|бюджет|аванс|предоплат|остаток\s+к\s+оплате|штраф|неустойк|не\s+является\s+согласованной\s+стоимостью/iu.test(flat)) continue;
     if (/стоимост[ьи]\s+определяется\s+спецификацией|числовое\s+значение\s+стоимости[^\n]*не\s+указано/iu.test(flat)) continue;
     const anchors = [
@@ -102,7 +106,7 @@ function deadlineCandidates(doc, proposed) {
     if (!/поставк|поставить|отгрузк|отгрузить|передать\s+товар/iu.test(flat)) continue;
     if (/оплат[аыуе]|приемк|приёмк/iu.test(flat) &&
         !/(?:поставк|поставить).{0,80}(?:не\s+позднее|до|срок)/iu.test(flat)) continue;
-    const isProposal = /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
+    const isProposal = ['draft','letter'].includes(doc.kind) || /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
     if (proposed !== isProposal) continue;
     const dates = [...flat.matchAll(DATE_RE)]
       .map(match => ({ value: toIso(match[0]), index: match.index }))
@@ -130,7 +134,11 @@ function signature(doc) {
     .map(x => x.text).join(' ');
   if (!declared) return 'unknown';
   if (/не\s+подписан|без\s+подпис|одной\s+стороной|на\s+согласовании|подписан\s+только/iu.test(declared)) return 'unsigned';
-  if (/подписан[аоы]?\s+(?:обеими\s+)?сторонами/iu.test(declared)) return 'signed';
+  if (/подписан[аоы]?\s+(?:обеими\s+)?сторонами/iu.test(declared)) {
+    const allText = doc.lines.map(x => x.text).join(' ');
+    if (/подписание\s+не\s+состоялось|(?:соглашени[ея]|договор)\s+не\s+подписан/iu.test(allText)) return 'unknown';
+    return 'signed';
+  }
   return 'unknown';
 }
 function effectiveDate(doc) {
@@ -162,7 +170,9 @@ export function parseDocument({ name, text }) {
   if (typeof name !== 'string' || typeof text !== 'string') throw new TypeError('Ожидаются имя файла и TXT');
   const lines = text.replace(/\r\n?/g, '\n').split('\n').map((text, index) => ({ no: index + 1, text }));
   const blocks = blocksFromLines(lines);
-  const kind = kindOf(lines);
+  let kind = kindOf(lines);
+  const declared = lines.filter(line => /^\s*Статус\s*:/iu.test(line.text)).map(x => x.text).join(' ');
+  if (kind === 'amendment' && /проект|на\s+согласовании|не\s+подписан/iu.test(declared)) kind = 'draft';
   const ids = [...new Set([...text.matchAll(ID_RE)].map(x => x[0].replace('–', '-')))];
   const doc = { name, text, lines, blocks, id: ids.length === 1 ? ids[0] : null, ids,
     kind, signature: signature({ lines }), issues: [] };
@@ -181,6 +191,10 @@ export function parseDocument({ name, text }) {
   if (deadline.ambiguous) doc.issues.push('Неоднозначный срок поставки');
   if (proposedAmount.ambiguous || proposedDeadline.ambiguous) doc.issues.push('Неоднозначное предложение об изменении');
   doc.effective = effectiveDate(doc);
+  const statusLine = lines.find(line => /^\s*Статус\s*:/iu.test(line.text))?.text || '';
+  const signedMatch = [...statusLine.matchAll(DATE_RE)].find(m => toIso(m[0]));
+  doc.signedAt = doc.signature === 'signed' && signedMatch
+    ? toIso(signedMatch[0]) : null;
   return doc;
 }
 
@@ -225,16 +239,22 @@ export function analyze(files, asOf = '2026-03-10') {
       proposals: [], review: [...base.issues],
       conflictFields: new Set() };
     if (base.signature !== 'signed') row.review.push('Подписание исходного договора не подтверждено');
+    else if (!base.signedAt || base.signedAt > asOf) row.review.push('Дата подписания основного договора не подтверждена на дату проверки');
     const amendments = related.filter(x => x.kind === 'amendment')
       .sort((a, b) => (a.effective?.value || '').localeCompare(b.effective?.value || ''));
     for (const doc of amendments) {
       row.review.push(...doc.issues.map(x => doc.name + ': ' + x));
       if (doc.signature !== 'signed') {
         row.review.push('Допсоглашение не подтверждено как подписанное: ' + doc.name);
+      } else if (!doc.signedAt || doc.signedAt > asOf) {
+        row.review.push('Подписание допсоглашения на дату проверки не подтверждено: ' + doc.name);
       } else if (!doc.effective) {
         row.review.push('Не установлена дата вступления в силу: ' + doc.name);
+      } else if (doc.supplier && base.supplier &&
+          normalize(doc.supplier.value).toLocaleLowerCase('ru') !== normalize(base.supplier.value).toLocaleLowerCase('ru')) {
+        row.review.push('Поставщик в допсоглашении не совпадает с договором: ' + doc.name);
       } else if (doc.effective.value <= asOf) {
-        if (base.signature === 'signed') apply(row, doc);
+        if (base.signature === 'signed' && base.signedAt && base.signedAt <= asOf) apply(row, doc);
         else row.review.push('Изменение нельзя применить: основной договор не подтверждён');
       }
     }
