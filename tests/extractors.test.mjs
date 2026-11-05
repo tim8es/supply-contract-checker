@@ -71,3 +71,19 @@ test('six original documents yield baseline amount/date and independent penalty 
  assert.deepEqual(rows.map(x=>x.extraFields.penaltyRate?.value??null),[0.1,0.05,null]);
  assert.deepEqual(rows.map(x=>x.amount?.value??null),[1380000,840000,null]);
 });
+
+test('a one-off penalty is not misreported as a per-day rate',()=>{
+ const doc={...base,text:base.text.replace(/Неустойка за просрочку[^\n]+/u,
+   'Разовый штраф за нарушение сроков поставки составляет 5% стоимости договора.')};
+ assert.equal(current([doc]).extraFields.penaltyRate,null);
+});
+test('daily rate after an upfront maximum penalty cap is selected, not the cap',()=>{
+ const doc={...base,text:base.text.replace(/Неустойка за просрочку[^\n]+/u,
+  'Предельный размер неустойки — 10% стоимости. Ежедневная неустойка составляет 0,2% за каждый день просрочки.')};
+ assert.equal(current([doc]).extraFields.penaltyRate.value,0.2);
+});
+test('multiple daily rate candidates without an explicit transition must abstain',()=>{
+ const doc={...base,text:base.text.replace(/Неустойка за просрочку[^\n]+/u,
+  'Размер неустойки составляет 0,1% за каждый день.\nРазмер неустойки составляет 0,3% за каждый день.')};
+ assert.equal(current([doc]).extraFields.penaltyRate,null);
+});
