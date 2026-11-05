@@ -62,10 +62,10 @@ function result(doc, block, value, reason) {
 }
 function best(candidates) {
   if (candidates.length === 0) return { selected: null, ambiguous: false };
+  // Conflicting explicit values are a data-quality warning, not a tie-breaking game.
+  if (new Set(candidates.map(x => String(x.value))).size > 1) return { selected: null, ambiguous: true };
   const highest = Math.max(...candidates.map(x => x.score));
-  const top = candidates.filter(x => x.score === highest);
-  if (new Set(top.map(x => String(x.value))).size > 1) return { selected: null, ambiguous: true };
-  return { selected: top[0], ambiguous: false };
+  return { selected: candidates.find(x => x.score === highest), ambiguous: false };
 }
 function priceCandidates(doc, proposed) {
   const found = [];
@@ -86,11 +86,13 @@ function priceCandidates(doc, proposed) {
         const suffix = flat.slice(match.index + match[0].length, match.index + match[0].length + 220);
         // Phrasing must explicitly associate the price with a monetary value.
         if (!/(?:составля(?:ет|ют)|установлен[аоы]?|равн[аоы]?|в\s+размере|определен[аоы]?|на\s+|[:—–-])/iu.test(suffix.slice(0, 100))) continue;
-        const num = [...suffix.matchAll(AMOUNT_RE)].find(x => {
+        const nums = [...suffix.matchAll(AMOUNT_RE)].filter(x => {
           const after = suffix.slice(x.index + x[0].length);
           return /^(?:\s*\([^)]{0,140}\))?\s*(?:рубл(?:ь|я|ей)|руб\.?|₽)/iu.test(after);
         });
-        if (!num) continue;
+        if (!nums.length) continue;
+        // In proposed changes "с OLD рублей на NEW рублей", OLD is NOT the proposal.
+        const num = proposed && nums.length > 1 ? nums.at(-1) : nums[0];
         const value = parseMoney(num[0]);
         if (value === null) continue;
         found.push({ ...result(doc, block, value, 'amount'), score: anchor.score });
@@ -227,7 +229,11 @@ export function analyze(files, asOf = '2026-03-10') {
     if (contractIds.has(base.id)) {
       issues.push('Дубликат основного договора ' + base.id + ': ' + base.name);
       const existing = rows.find(x => x.id === base.id);
-      existing?.review.push('Дубликат основного договора требует ручной проверки');
+      if (existing) {
+        existing.amount = null;
+        existing.deadline = null;
+        existing.review.push('Дубликат основного договора: действующие значения требуют ручной проверки');
+      }
       continue;
     }
     contractIds.add(base.id);
