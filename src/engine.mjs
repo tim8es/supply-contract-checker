@@ -185,8 +185,8 @@ function termModificationIntents(doc) {
   if (doc.kind !== 'amendment') return intents;
   for (const block of doc.blocks) {
     const text = normalize(block.text);
-    if (/\b(?:остальные\s+условия|без\s+изменений|не\s+изменя(?:ются|ется))\b/iu.test(text)) continue;
-    const modification = /(?:измен|излож|установ|составля|определя|перенес|перенести|продл|будет|нов(?:ую|ой|ая|ый)|\bтеперь\b|\bстановится\b)/iu.test(text);
+    if (/(?:остальные\s+условия|без\s+изменений|не\s+изменя(?:ются|ется))/iu.test(text)) continue;
+    const modification = /(?:измен|излож|установ|составля|определя|перенес|перенести|продл|будет|нов(?:ую|ой|ая|ый)|теперь|\bстановится\b)/iu.test(text);
     if (!modification) continue;
     if (/(?:общ(?:ая|ую)\s+(?:стоимость|сумма|стоимости|сумму)|сумм[ауы]\s+(?:договора|контракта|поставки)|цен[ауы]\s+(?:договора|контракта|поставки)|стоимост[ьи]\s+(?:договора|контракта|поставки))/iu.test(text)) intents.amount ??= citation(doc, block);
     if (/(?:срок\s+(?:поставки|отгрузки)|дат[ауы]\s+поставки|поставк[аиуы]?\s+(?:оборудования|товара|осуществляется)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка))/iu.test(text)) intents.deadline ??= citation(doc, block);
