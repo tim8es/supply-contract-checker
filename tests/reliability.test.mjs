@@ -25,6 +25,8 @@ test('signed amendment that explicitly changes amount but does not provide parse
  const row=select([base(),amendment('Общая стоимость поставки теперь определяется спецификацией № 2, не приложенной к материалам.')]);
  assert.equal(row.amount,null);
  assert.ok(row.review.some(x=>/изменени[ея]|определить|неоднознач/iu.test(x)));
+ assert.ok(row.history.amount.at(-1).evidence?.quote.includes('определяется спецификацией'));
+ assert.equal(row.history.amount.at(-1).file,'amendment.txt');
  assert.equal(row.deadline?.value,'2026-04-15');
 });
 
