@@ -21,8 +21,13 @@ export function verifyEvidence(document, candidate, parseToken) {
       failures.push('quote_mismatch');
     }
   }
+  // Match a normalized token against the exact *unmodified* source quote.
+  // Russian financial TXT may use NBSP/thin spaces or wrap amounts across lines.
+  const sameWhitespace = text => text.replace(/[\u00a0\u202f]/gu,' ').replace(/\s+/gu,' ');
   if (typeof evidence.valueText !== 'string' || !evidence.valueText.length ||
-      !evidence.quote?.includes(evidence.valueText)) failures.push('token_not_in_quote');
+      !sameWhitespace(evidence.quote ?? '').includes(sameWhitespace(evidence.valueText))) {
+    failures.push('token_not_in_quote');
+  }
   if (typeof parseToken !== 'function') failures.push('missing_token_parser');
   else if (!failures.includes('token_not_in_quote')) {
     try {
