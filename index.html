@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Supply Contract Checker</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="src/app.mjs"></script>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <p class="eyebrow">Semantic TextNavigator · проверка условий поставок</p>
+      <h1>Договоры поставки</h1>
+      <p class="muted">Действующие суммы и сроки с точной цитатой. Файлы обрабатываются в вашем браузере.</p>
+    </header>
+    <section class="panel controls">
+      <label class="upload">Загрузить TXT-файлы<input id="files" type="file" multiple accept=".txt,text/plain"></label>
+      <button type="button" id="demo" class="secondary">Загрузить учебные документы</button>
+      <label>Дата проверки <input type="date" id="asof" value="2026-03-10"></label>
+      <p id="upload-message" class="muted" role="status">Выберите файлы или откройте учебный набор.</p>
+    </section>
+    <section class="panel">
+      <div class="section-title">
+        <div><h2>Действующие условия</h2><p class="muted">Нажмите на основание, чтобы открыть исходный абзац.</p></div>
+        <div class="filters"><button type="button" id="all" class="secondary">Все договоры</button><button type="button" id="before">Поставка до 01.04.2026</button></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Договор</th><th>Поставщик</th><th>Сумма</th><th>Срок поставки</th><th>Проверка</th></tr></thead><tbody id="contracts"><tr><td colspan="5" class="muted">Документы ещё не загружены.</td></tr></tbody></table></div>
+      <p id="filter-message" class="muted"></p><div id="issues" role="status"></div>
+    </section>
+    <section class="panel">
+      <h2>Предложения и проекты</h2>
+      <div id="proposals" class="muted">После загрузки здесь появятся несогласованные изменения.</div>
+    </section>
+    <section class="panel">
+      <div class="section-title"><div><h2>Исходный документ</h2><p class="muted">Текст без преобразования, строки пронумерованы.</p></div><label>Файл <select id="document-select"><option>Нет файлов</option></select></label></div>
+      <div id="source" class="source" aria-live="polite">Выберите основание в таблице.</div>
+    </section>
+    <footer class="muted">Учебный прототип. Автоматическое извлечение не заменяет проверку специалистом.</footer>
+  </main>
+</body>
+</html>
