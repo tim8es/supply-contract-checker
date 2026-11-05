@@ -43,7 +43,7 @@ function blocksFromLines(lines) {
   for (const line of lines) {
     if (!line.text.trim()) { flush(); continue; }
     // Clauses within the same TXT file may be adjacent without blank lines.
-    if (/^\s*\d+(?:\.\d+)*\.\s/u.test(line.text) && pending.length) flush();
+    if ((/^\s*\d+(?:\.\d+)*\.\s/u.test(line.text) || /^\s*(?:Статус\s*:|Поставщик\s*:|(?:Общая|Цена|Стоимость|Сумма)\s|Срок\s+поставки\s*[:—–-]|Поставщик\s+(?:обязуется|обязан)\s|Поставка\s+осуществляется\s|Оплата\s)/iu.test(line.text)) && pending.length) flush();
     pending.push(line);
   }
   flush();
