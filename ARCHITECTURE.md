@@ -102,7 +102,7 @@ Do not multiply browser upload caps or run a GitHub job per user request. Evolve
 
 ## Extension seam: penalty rate
 
-Add `penaltyRate` as a new field extractor to `engine.mjs`, keep `{value,evidence,changedBy,effective}` and add cases to `tests/`. Do not confuse a daily percentage with a total cap. Existing UI evidence renderer can show another field without a new backend. This can be a useful live demo of extending the system with AI assistance and regression tests.
+The penalty-rate extension is implemented in `src/extractors/penalty.mjs`. Call `analyze(files, date, {extractors:[penaltyRateExtractor]})` to enable it. The plugin provides `key`, `label`, `parseToken`, `extract` and `changedIntent`; the engine handles exact evidence, signatures, effective dates, proposals and value history. Result: `row.extraFields.penaltyRate.value` in **percent per day** (0.1 means 0.1%, not 10%). A separate daily rate is distinguished from a maximum penalty cap. See `tests/extractors.test.mjs` and `docs/integration.md`.
 
 ## Quality gate
 
