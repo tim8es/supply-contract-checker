@@ -1,136 +1,268 @@
-/** Deterministic TXT extraction engine. No filename- or contract-specific answers. */
-const ID = /\b[A-ZА-ЯЁ]{2,12}[-–]\d{2,12}\b/u;
+/**
+ * Supply Contract Checker / deterministic extraction core.
+ * Inputs are user-supplied strings; rules never depend on fixture filenames or IDs.
+ * Never infer missing terms, and never accept an amendment without explicit status + effective date.
+ */
+const ID_RE = /\b[A-ZА-ЯЁ]{2,12}[-–]\d{2,12}\b/gu;
+const DATE_RE = /\b(?:\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b/gu;
+const AMOUNT_RE = /(?<![\d])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{4,}|\d{1,3})(?:[,.]\d{2})?(?![\d])/gu;
 
-function toIso(value) {
+export function toIso(value) {
   if (!value) return null;
-  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
-  if (!match) return null;
-  const [, dd, mm, yyyy] = match;
-  const date = new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd)));
-  return date.getUTCFullYear() === Number(yyyy) && date.getUTCMonth() === Number(mm) - 1 && date.getUTCDate() === Number(dd)
-    ? yyyy + '-' + mm + '-' + dd : null;
+  const v = String(value);
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
+  const iso = m ? m[3] + '-' + m[2] + '-' + m[1] : v;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const date = new Date(iso + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null;
 }
 
-function evidence(doc, line, match = null) {
-  return { file: doc.name, line: line.no, quote: line.text, match: match || line.text };
+function normalize(text) {
+  return text.replace(/\u00a0|\u202f/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function findField(doc, pattern, convert = value => value) {
-  for (const line of doc.lines) {
-    const found = line.text.match(pattern);
-    if (found) {
-      const value = convert(found[1]);
-      if (value !== null && value !== undefined && value !== '') {
-        return { value, evidence: evidence(doc, line, found[0]) };
+export function parseMoney(value) {
+  const clean = String(value).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.');
+  if (!/^\d+(?:\.\d{2})?$/.test(clean)) return null;
+  const cents = Math.round(Number(clean) * 100);
+  return Number.isSafeInteger(cents) ? cents / 100 : null;
+}
+
+function blocksFromLines(lines) {
+  const blocks = [];
+  let pending = [];
+  const flush = () => {
+    if (!pending.length) return;
+    blocks.push({
+      text: pending.map(x => x.text).join('\n'),
+      startLine: pending[0].no,
+      endLine: pending.at(-1).no
+    });
+    pending = [];
+  };
+  for (const line of lines) {
+    if (!line.text.trim()) { flush(); continue; }
+    // Clauses within the same TXT file may be adjacent without blank lines.
+    if (/^\s*\d+(?:\.\d+)*\.\s/u.test(line.text) && pending.length) flush();
+    pending.push(line);
+  }
+  flush();
+  return blocks;
+}
+
+function citation(doc, block) {
+  return { file: doc.name, line: block.startLine, endLine: block.endLine, quote: block.text };
+}
+function result(doc, block, value, reason) {
+  return { value, evidence: citation(doc, block), reason };
+}
+function best(candidates) {
+  if (candidates.length === 0) return { selected: null, ambiguous: false };
+  const highest = Math.max(...candidates.map(x => x.score));
+  const top = candidates.filter(x => x.score === highest);
+  if (new Set(top.map(x => String(x.value))).size > 1) return { selected: null, ambiguous: true };
+  return { selected: top[0], ambiguous: false };
+}
+function priceCandidates(doc, proposed) {
+  const found = [];
+  for (const block of doc.blocks) {
+    const flat = normalize(block.text);
+    const explicitProposal = /(?:предлагается|предлагаем|просим|проект)/iu.test(flat);
+    if (proposed && !explicitProposal) continue;
+    if (!proposed && /(?:предлагается|предлагаем|проект\s+изменения)/iu.test(flat)) continue;
+    if (/лимит|бюджет|аванс|предоплат|остаток\s+к\s+оплате|штраф|неустойк|не\s+является\s+согласованной\s+стоимостью/iu.test(flat)) continue;
+    if (/стоимост[ьи]\s+определяется\s+спецификацией|числовое\s+значение\s+стоимости[^\n]*не\s+указано/iu.test(flat)) continue;
+    const anchors = [
+      { re: /(?:общ(?:ая|ую)|итогов(?:ая|ую))\s+(?:стоимост[ьи]|сумм[ауы])(?:\s+(?:поставки|договора|контракта))?/giu, score: 5 },
+      { re: /(?:стоимост[ьи]|сумм[ауы]|цен[ауы])\s+(?:договора|контракта|поставки|товаров|оборудования)/giu, score: 4 },
+      { re: /(?:договорная\s+цена|итого\s+по\s+договору)/giu, score: 4 }
+    ];
+    for (const anchor of anchors) {
+      for (const match of flat.matchAll(anchor.re)) {
+        const suffix = flat.slice(match.index + match[0].length, match.index + match[0].length + 220);
+        // Phrasing must explicitly associate the price with a monetary value.
+        if (!/(?:составля(?:ет|ют)|установлен[аоы]?|равн[аоы]?|в\s+размере|определен[аоы]?|на\s+|[:—–-])/iu.test(suffix.slice(0, 100))) continue;
+        const num = [...suffix.matchAll(AMOUNT_RE)].find(x => {
+          const after = suffix.slice(x.index + x[0].length);
+          return /^(?:\s*\([^)]{0,140}\))?\s*(?:рубл(?:ь|я|ей)|руб\.?|₽)/iu.test(after);
+        });
+        if (!num) continue;
+        const value = parseMoney(num[0]);
+        if (value === null) continue;
+        found.push({ ...result(doc, block, value, 'amount'), score: anchor.score });
+      }
+    }
+  }
+  return best(found);
+}
+function deadlineCandidates(doc, proposed) {
+  const found = [];
+  for (const block of doc.blocks) {
+    const flat = normalize(block.text);
+    if (!/поставк|поставить|отгрузк|отгрузить|передать\s+товар/iu.test(flat)) continue;
+    if (/оплат[аыуе]|приемк|приёмк/iu.test(flat) &&
+        !/(?:поставк|поставить).{0,80}(?:не\s+позднее|до|срок)/iu.test(flat)) continue;
+    const isProposal = /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
+    if (proposed !== isProposal) continue;
+    const dates = [...flat.matchAll(DATE_RE)]
+      .map(match => ({ value: toIso(match[0]), index: match.index }))
+      .filter(match => match.value);
+    if (!dates.length) continue;
+    const hasClearAnchor = /(?:срок\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/iu.test(flat);
+    if (!hasClearAnchor) continue;
+    const direct = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на)/iu.test(flat);
+    if (!direct) continue;
+    // For "с OLD на NEW" the last date is the proposed new deadline.
+    const selected = proposed ? dates.at(-1) : dates[0];
+    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
+  }
+  return best(found);
+}
+function supplierCandidate(doc) {
+  for (const block of doc.blocks) {
+    const m = /(?:^|[\s.])Поставщик\s*[:—–-]\s*(ООО\s*«[^»]+»|АО\s*«[^»]+»|ИП\s+[А-ЯЁ][^.,\n]*|[^.\n]+)/iu.exec(block.text);
+    if (m) return result(doc, block, m[1].trim(), 'supplier');
+  }
+  return null;
+}
+function signature(doc) {
+  const declared = doc.lines.filter(line => /^\s*Статус\s*:/iu.test(line.text))
+    .map(x => x.text).join(' ');
+  if (!declared) return 'unknown';
+  if (/не\s+подписан|без\s+подпис|одной\s+стороной|на\s+согласовании|подписан\s+только/iu.test(declared)) return 'unsigned';
+  if (/подписан[аоы]?\s+(?:обеими\s+)?сторонами/iu.test(declared)) return 'signed';
+  return 'unknown';
+}
+function effectiveDate(doc) {
+  for (const block of doc.blocks) {
+    const matches = [
+      /(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(?:с\s+)?(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu,
+      /дата\s+вступления\s+в\s+силу\s*[:—–-]\s*(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu
+    ];
+    for (const re of matches) {
+      const m = block.text.match(re);
+      if (m) {
+        const value = toIso(m[1]);
+        if (value) return result(doc, block, value, 'effectiveDate');
       }
     }
   }
   return null;
 }
-
-const valueNumber = value => {
-  const digits = value.replace(/[\s\u00a0\u202f]/g, '');
-  const result = Number(digits);
-  return Number.isSafeInteger(result) && result >= 0 ? result : null;
-};
-
-function extractAmount(doc) {
-  return findField(doc, /(?:общая\s+стоимость\s+(?:поставки|договора)|общая\s+сумма\s+договора)\s+(?:составляет|равна|установлена\s+в\s+размере)\s+([\d\s\u00a0\u202f]+?)\s*(?:\([^)]*\)\s*)?рубл/iu, valueNumber);
-}
-function extractDeadline(doc) {
-  return findField(doc, /(?:поставщик\s+обязуется\s+поставить[^\n]*?не\s+позднее|срок\s+поставки\s+(?:устанавливается\s+)?(?:не\s+позднее|до))\s+(\d{2}\.\d{2}\.\d{4})/iu, toIso);
-}
-function extractProposedAmount(doc) {
-  return findField(doc, /(?:предлагается\s+изменить|предлагаем\s+изменить)[^\n]*?(?:общую\s+стоимость\s+поставки|сумму\s+договора)\s+на\s+([\d\s\u00a0\u202f]+?)\s*рубл/iu, valueNumber);
-}
-function extractProposedDeadline(doc) {
-  return findField(doc, /(?:предлагается\s+изменить\s+срок\s+поставки\s+на|предлагаем\s+перенести\s+срок\s+поставки\s+с\s+\d{2}\.\d{2}\.\d{4}\s+на)\s+(\d{2}\.\d{2}\.\d{4})/iu, toIso);
-}
-function extractSupplier(doc) {
-  return findField(doc, /Поставщик:\s*([^\.\n]+?)(?=\.\s|\.$|$)/iu, value => value.trim().replace(/[\.\s]+$/, ''));
+function kindOf(lines) {
+  const heading = lines.find(x => x.text.trim())?.text || '';
+  if (/проект\s+(?:дополнительного\s+соглашения|изменения)/iu.test(heading)) return 'draft';
+  if (/дополнительно(?:е|го)\s+соглашени|допсоглашени/iu.test(heading)) return 'amendment';
+  if (/(?:договор|контракт)\s+(?:поставки|№)/iu.test(heading)) return 'contract';
+  if (/письмо|уведомлени|предложени/iu.test(heading)) return 'letter';
+  return 'unknown';
 }
 
-/** Classification relies on the document heading and declared signature status. */
 export function parseDocument({ name, text }) {
+  if (typeof name !== 'string' || typeof text !== 'string') throw new TypeError('Ожидаются имя файла и TXT');
   const lines = text.replace(/\r\n?/g, '\n').split('\n').map((text, index) => ({ no: index + 1, text }));
-  const heading = (lines.find(line => line.text.trim()) || { text: '' }).text;
-  const status = lines.find(line => /^\s*Статус\s*:/iu.test(line.text));
-  const statusText = status?.text || '';
-  const signed = /подписан[аоы]?\s+обеими\s+сторонами/iu.test(statusText) && !/не\s+подписан/iu.test(statusText);
-  let kind = 'unknown';
-  if (/проект\s+дополнительного\s+соглашения/iu.test(heading) || /проект\s+на\s+согласовании|не\s+подписан/iu.test(statusText)) kind = 'draft';
-  else if (/дополнительн(?:ое|ого)\s+соглашени/iu.test(heading)) kind = 'amendment';
-  else if (/^\s*договор\s+поставки/iu.test(heading)) kind = 'contract';
-  else if (/^\s*письмо(?:\s|$)/iu.test(heading)) kind = 'letter';
-  const id = (heading.match(ID) || text.match(ID))?.[0] || null;
-  const doc = { name, text, lines, id, kind, signed, statusText };
-  doc.supplier = extractSupplier(doc);
-  doc.amount = extractAmount(doc);
-  doc.deadline = extractDeadline(doc);
-  doc.proposedAmount = extractProposedAmount(doc);
-  doc.proposedDeadline = extractProposedDeadline(doc);
-  doc.effective = findField(doc, /(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(\d{2}\.\d{2}\.\d{4})/iu, toIso);
+  const blocks = blocksFromLines(lines);
+  const kind = kindOf(lines);
+  const ids = [...new Set([...text.matchAll(ID_RE)].map(x => x[0].replace('–', '-')))];
+  const doc = { name, text, lines, blocks, id: ids.length === 1 ? ids[0] : null, ids,
+    kind, signature: signature({ lines }), issues: [] };
+  if (!ids.length) doc.issues.push('Не найден номер договора');
+  if (ids.length > 1) doc.issues.push('Несколько номеров договоров: ' + ids.join(', '));
+  doc.supplier = supplierCandidate(doc);
+  const amount = priceCandidates(doc, false);
+  const deadline = deadlineCandidates(doc, false);
+  const proposedAmount = priceCandidates(doc, true);
+  const proposedDeadline = deadlineCandidates(doc, true);
+  doc.amount = amount.selected;
+  doc.deadline = deadline.selected;
+  doc.proposedAmount = proposedAmount.selected;
+  doc.proposedDeadline = proposedDeadline.selected;
+  if (amount.ambiguous) doc.issues.push('Неоднозначная сумма');
+  if (deadline.ambiguous) doc.issues.push('Неоднозначный срок поставки');
+  if (proposedAmount.ambiguous || proposedDeadline.ambiguous) doc.issues.push('Неоднозначное предложение об изменении');
+  doc.effective = effectiveDate(doc);
   return doc;
 }
 
-function applyChanges(row, doc, effective) {
+function fieldValue(field) {
+  return field ? { value: field.value, evidence: field.evidence, changedBy: field.changedBy ?? null,
+    effective: field.effective ?? null } : null;
+}
+function apply(row, doc) {
   for (const field of ['amount', 'deadline']) {
-    if (!doc[field]) continue;
-    if (row.conflicts.has(field)) continue;
+    if (!doc[field] || row.conflictFields.has(field)) continue;
     const previous = row[field];
-    if (previous?.effective === effective && previous.value !== doc[field].value) {
-      row[field] = null;
-      row.conflicts.add(field);
-      row.review.push('Противоречащие изменения поля ' + field + ' от ' + effective);
+    if (previous?.effective === doc.effective.value && previous.value !== doc[field].value) {
+      row[field] = null; row.conflictFields.add(field);
+      row.review.push('Противоречащие подписанные изменения: ' + field + ' на дату ' + doc.effective.value);
       continue;
     }
-    row[field] = { ...doc[field], effective, changedBy: doc.name };
+    row[field] = { ...fieldValue(doc[field]), changedBy: doc.name, effective: doc.effective.value };
   }
 }
-
 export function analyze(files, asOf = '2026-03-10') {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf) || !Number.isFinite(Date.parse(asOf))) throw new Error('Некорректная дата проверки');
+  if (!toIso(asOf) || toIso(asOf) !== asOf) throw new Error('Некорректная дата проверки');
+  if (!Array.isArray(files)) throw new TypeError('Ожидается массив TXT');
   const docs = files.map(parseDocument);
   const rows = [];
   const issues = [];
-  const seen = new Set();
-  for (const base of docs.filter(doc => doc.kind === 'contract')) {
-    if (!base.id || seen.has(base.id)) {
-      issues.push('Не найден уникальный номер договора: ' + base.name);
+  const baseDocuments = docs.filter(x => x.kind === 'contract');
+  const contractIds = new Set();
+  for (const base of baseDocuments) {
+    if (!base.id) { issues.push('Невозможно определить договор: ' + base.name); continue; }
+    if (contractIds.has(base.id)) {
+      issues.push('Дубликат основного договора ' + base.id + ': ' + base.name);
+      const existing = rows.find(x => x.id === base.id);
+      existing?.review.push('Дубликат основного договора требует ручной проверки');
       continue;
     }
-    seen.add(base.id);
-    const row = {
-      id: base.id, supplier: base.supplier?.value || null,
-      amount: base.amount ? { ...base.amount, effective: null, changedBy: null } : null,
-      deadline: base.deadline ? { ...base.deadline, effective: null, changedBy: null } : null,
-      documents: [base.name], proposals: [], review: [], source: base.name, conflicts: new Set()
-    };
-    if (!base.signed) row.review.push('Не подтверждено подписание основного договора');
-    const related = docs.filter(doc => doc !== base && doc.id === base.id);
-    row.documents.push(...related.map(doc => doc.name));
-    const amendments = related.filter(doc => doc.kind === 'amendment');
-    amendments.sort((a, b) => (a.effective?.value || '').localeCompare(b.effective?.value || ''));
-    for (const amend of amendments) {
-      if (!amend.signed || !amend.effective) {
-        row.review.push('Статус или дата вступления в силу не подтверждены: ' + amend.name);
-      } else if (amend.effective.value <= asOf) {
-        applyChanges(row, amend, amend.effective.value);
+    contractIds.add(base.id);
+    const related = docs.filter(x => x !== base && x.id === base.id);
+    const row = { id: base.id, supplier: base.supplier?.value ?? null,
+      supplierEvidence: base.supplier?.evidence ?? null,
+      amount: fieldValue(base.amount), deadline: fieldValue(base.deadline),
+      source: base.name, documents: [base.name, ...related.map(x => x.name)],
+      proposals: [], review: [...base.issues],
+      conflictFields: new Set() };
+    if (base.signature !== 'signed') row.review.push('Подписание исходного договора не подтверждено');
+    const amendments = related.filter(x => x.kind === 'amendment')
+      .sort((a, b) => (a.effective?.value || '').localeCompare(b.effective?.value || ''));
+    for (const doc of amendments) {
+      row.review.push(...doc.issues.map(x => doc.name + ': ' + x));
+      if (doc.signature !== 'signed') {
+        row.review.push('Допсоглашение не подтверждено как подписанное: ' + doc.name);
+      } else if (!doc.effective) {
+        row.review.push('Не установлена дата вступления в силу: ' + doc.name);
+      } else if (doc.effective.value <= asOf) {
+        if (base.signature === 'signed') apply(row, doc);
+        else row.review.push('Изменение нельзя применить: основной договор не подтверждён');
       }
     }
-    for (const doc of related.filter(doc => ['draft', 'letter'].includes(doc.kind))) {
-      row.proposals.push({ kind: doc.kind, file: doc.name, amount: doc.proposedAmount, deadline: doc.proposedDeadline });
+    for (const doc of related.filter(x => x.kind === 'draft' || x.kind === 'letter')) {
+      row.proposals.push({ kind: doc.kind, file: doc.name,
+        amount: fieldValue(doc.proposedAmount), deadline: fieldValue(doc.proposedDeadline),
+        evidence: doc.blocks[0] ? citation(doc, doc.blocks[0]) : null });
+      row.review.push(...doc.issues.map(x => doc.name + ': ' + x));
     }
+    if (!row.amount && !row.conflictFields.has('amount')) row.review.push('Стоимость не установлена в загруженных документах');
+    if (!row.deadline && !row.conflictFields.has('deadline')) row.review.push('Срок поставки не установлен в загруженных документах');
+    delete row.conflictFields;
     rows.push(row);
   }
   for (const doc of docs) {
-    if (doc.kind === 'unknown' || !doc.id || (doc.kind !== 'contract' && !seen.has(doc.id))) {
-      issues.push('Не удалось связать документ: ' + doc.name);
+    if (doc.kind === 'unknown') issues.push('Неизвестный тип документа: ' + doc.name);
+    if (doc.kind !== 'contract' && (!doc.id || !contractIds.has(doc.id))) {
+      issues.push('Документ не связан с договором: ' + doc.name);
     }
   }
-  return { rows: rows.sort((a,b) => a.id.localeCompare(b.id)), issues, documents: docs, asOf };
+  return { rows: rows.sort((a, b) => a.id.localeCompare(b.id)),
+    issues, documents: docs, asOf };
 }
-
 export function deliveriesBefore(rows, cutoff = '2026-04-01') {
-  return rows.filter(row => row.deadline && row.deadline.value < cutoff);
+  if (!toIso(cutoff)) throw new Error('Некорректная дата границы');
+  return rows.filter(row => row.deadline && row.deadline.value < toIso(cutoff));
+}
+export function toPublicResult(result) {
+  return { asOf: result.asOf, contracts: result.rows, issues: result.issues,
+    documentCount: result.documents.length, schemaVersion: '1.0' };
 }
