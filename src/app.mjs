@@ -1,8 +1,10 @@
 import { analyze, deliveriesBefore, toPublicResult } from './engine.mjs';
+import { penaltyRateExtractor } from './extractors/penalty.mjs';
 
 const $ = id => document.getElementById(id);
 const money = n => n == null ? 'Нет данных' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n) + ' ₽';
 const dateLabel = v => v ? v.split('-').reverse().join('.') : 'Нет данных';
+const percentDaily = n => n == null ? 'Нет данных' : new Intl.NumberFormat('ru-RU',{maximumFractionDigits:4}).format(n) + '% / день';
 const MAX_FILES = 100;
 const MAX_SIZE = 2_000_000;
 let inputs = [];
@@ -45,20 +47,22 @@ function showDocument(name, from = 0, to = from) {
 
 function renderFieldHistory(row, label) {
   const field = label === 'Сумма договора' ? 'amount'
-    : label === 'Срок поставки' ? 'deadline' : null;
+    : label === 'Срок поставки' ? 'deadline'
+    : label === 'Ставка неустойки' ? 'penaltyRate' : null;
   const entries = field && row?.history?.[field];
   if (!entries || entries.length < 2) return;
   const history = el('section', null, 'term-history');
   history.append(el('h3', 'История условия'));
   const timeline = el('ol', null, 'term-timeline');
   for (const entry of entries) {
-    const active = !!row[field] && entry.evidence &&
-      entry.evidence.file === row[field].evidence?.file &&
-      entry.value === row[field].value;
+    const current = row[field] ?? row.extraFields?.[field] ?? null;
+    const active = !!current && entry.evidence &&
+      entry.evidence.file === current.evidence?.file &&
+      entry.value === current.value;
     const item = el('li', null, 'term-event' + (active ? ' active' : ''));
     const heading = el('div', null, 'term-event-head');
     const value = entry.value == null ? 'Значение не определено'
-      : field === 'amount' ? money(entry.value) : dateLabel(entry.value);
+      : field === 'amount' ? money(entry.value) : field === 'penaltyRate' ? percentDaily(entry.value) : dateLabel(entry.value);
     heading.append(el('strong', value));
     heading.append(el('span', active ? 'Действует' :
       entry.outcome === 'conflict' ? 'Конфликт' :
@@ -128,7 +132,7 @@ function sourceButton(row, field, data, format) {
 
 function valueCell(row, field, formatter, label) {
   const cell = el('td');
-  const data = row[field];
+  const data = row[field] ?? row.extraFields?.[field] ?? null;
   cell.append(el('strong', data ? formatter(data.value) : 'Нет данных', 'value' + (data ? '' : ' missing')));
   if (data?.evidence) cell.append(sourceButton(row, label, data, formatter));
   else {
@@ -171,7 +175,8 @@ function renderTable() {
       }, row.documents.length + ' связанных документов'));
     meta.append(name, el('span', row.supplier || 'Поставщик не установлен', 'supplier'));
     tr.append(meta, valueCell(row, 'amount', money, 'Сумма договора'),
-      valueCell(row, 'deadline', dateLabel, 'Срок поставки'));
+      valueCell(row, 'deadline', dateLabel, 'Срок поставки'),
+      valueCell(row, 'penaltyRate', percentDaily, 'Ставка неустойки'));
     const status = el('td');
     const warn = row.review.length > 0;
     status.append(el('span', warn ? '● Проверить' : '✓ Подтверждено', 'status ' + (warn ? 'review' : 'good')));
@@ -181,7 +186,7 @@ function renderTable() {
   if (!rows.length) {
     const tr = el('tr');
     const td = el('td', analysis.rows.length ? 'Нет договоров по выбранному фильтру.' : 'Договоры не найдены.', 'empty-cell');
-    td.colSpan = 4; tr.append(td); container.append(tr);
+    td.colSpan = 5; tr.append(td); container.append(tr);
   }
   $('table-count').textContent = 'Показано ' + rows.length + ' из ' + analysis.rows.length +
     ' · проверка на ' + dateLabel(analysis.asOf) +
@@ -210,6 +215,7 @@ function renderProposals() {
     box.append(el('p', proposal.file, 'proposal-meta'));
     proposalLine(box, row, 'amount', proposal.amount, 'Предложенная сумма', money);
     proposalLine(box, row, 'deadline', proposal.deadline, 'Предложенный срок', dateLabel);
+    proposalLine(box, row, 'penaltyRate', proposal.extraFields?.penaltyRate, 'Предложенная неустойка', percentDaily);
     if (!proposal.amount && !proposal.deadline) box.append(el('p', 'Нужна ручная проверка предложения', 'proposal-description'));
     item.append(box); host.append(item); count++;
   }
@@ -239,7 +245,7 @@ function render() {
 function recalculate() {
   if (!inputs.length) return;
   try {
-    analysis = analyze(inputs, $('asof').value);
+    analysis = analyze(inputs, $('asof').value,{extractors:[penaltyRateExtractor]});
     const select = $('document-select');
     const chosen = select.value;
     select.replaceChildren();
