@@ -240,12 +240,19 @@ function apply(row, doc) {
     if (existingConflict && existingConflict === effective) continue;
     const previous = row[field];
     if (previous?.effective === effective && previous.value !== doc[field]?.value) {
+      row.history[field].push({
+        value: doc[field]?.value ?? null, evidence: doc[field]?.evidence ?? null,
+        file: doc.name, effective, outcome: 'conflict'
+      });
       row[field] = null;
       row.conflictFields.set(field, effective);
       row.review.push('Противоречащие подписанные изменения: ' + field + ' на дату ' + effective);
       continue;
     }
     if (!doc[field]) {
+      row.history[field].push({
+        value: null, evidence: null, file: doc.name, effective, outcome: 'unresolved'
+      });
       row[field] = null;
       row.conflictFields.set(field, effective);
       row.review.push('Подписанное изменение затрагивает поле ' + field +
@@ -253,6 +260,10 @@ function apply(row, doc) {
       continue;
     }
     row.conflictFields.delete(field);
+    row.history[field].push({
+      value: doc[field].value, evidence: doc[field].evidence,
+      file: doc.name, effective, outcome: 'applied'
+    });
     row[field] = { ...fieldValue(doc[field]), changedBy: doc.name, effective };
   }
 }
@@ -283,6 +294,16 @@ export function analyze(files, asOf = '2026-03-10') {
       amount: fieldValue(base.amount), deadline: fieldValue(base.deadline),
       source: base.name, documents: [base.name, ...related.map(x => x.name)],
       proposals: [], review: [...base.issues],
+      history: {
+        amount: base.amount ? [{
+          value: base.amount.value, evidence: base.amount.evidence,
+          file: base.name, effective: null, outcome: 'base'
+        }] : [],
+        deadline: base.deadline ? [{
+          value: base.deadline.value, evidence: base.deadline.evidence,
+          file: base.name, effective: null, outcome: 'base'
+        }] : []
+      },
       conflictFields: new Map() };
     if (base.signature !== 'signed') {
       row.amount = null;
