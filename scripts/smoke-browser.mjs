@@ -105,7 +105,8 @@ async function main() {
     assert(proof.quote.includes('1 380 000'), 'source quote');
     assert(proof.highlights >= 1, 'selected original paragraph');
     const timeline = await evaluate("document.querySelector('.term-history')?.innerText || ''");
-    assert(timeline.includes('1 200 000') && timeline.includes('1 380 000'), 'old and new amount timeline');
+    const normalizedTimeline = timeline.replace(/\s/gu, ' ');
+    assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
 
     const uploaded = await evaluate(`(async()=>{
