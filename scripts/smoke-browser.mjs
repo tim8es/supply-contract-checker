@@ -29,7 +29,7 @@ async function waitForChrome(profileDir, child) {
     if (child.exitCode !== null) throw new Error('Chrome exited before opening CDP: exit ' + child.exitCode);
     try {
       const active = await readFile(join(profileDir, 'DevToolsActivePort'), 'utf8');
-      const port = Number(active.split('\\n')[0]);
+      const port = Number(active.split(String.fromCharCode(10))[0]);
       if (Number.isInteger(port) && port > 0) {
         const response = await fetch('http://127.0.0.1:' + port + '/json/list');
         if (response.ok) {
