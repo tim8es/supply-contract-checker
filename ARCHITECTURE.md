@@ -8,7 +8,7 @@ The test dataset is a six-file synthetic corpus. Arbitrary Russian legal prose r
 
 ## System context
 
-\`\`\`text
+```text
                   browser (no upload / secrets)
       ┌─────────────────────────────────────────────────┐
       │  HTML/CSS/ESM interface on GitHub Pages         │
@@ -23,24 +23,24 @@ TXT ──┤  file input → engine.mjs → result object         ├──> Re
                   scripts/analyze.mjs → JSON artifact
                              │
                        external importer / n8n
-\`\`\`
+```
 
-**Why not call GitHub Actions on each upload?** Actions is an event-driven CI job runner, not a low-latency public HTTP endpoint. A browser-triggered \`workflow_dispatch\` would require a private GitHub token on the client or a separate trusted broker. The runner queue and cold startup add seconds/minutes, so local parsing is the correct execution strategy for small TXT files.
+**Why not call GitHub Actions on each upload?** Actions is an event-driven CI job runner, not a low-latency public HTTP endpoint. A browser-triggered `workflow_dispatch` would require a private GitHub token on the client or a separate trusted broker. The runner queue and cold startup add seconds/minutes, so local parsing is the correct execution strategy for small TXT files.
 
 ## Data flow and invariants
 
-1. **Input:** raw \`{name, text}\` objects, with \`File API\` used in the browser and file system in the CLI. Filename is only for provenance. File contents are never published by the browser.
-2. **Segmentation:** preserve original lines, make paragraph/numbered-clause blocks with \`startLine\` and \`endLine\`. Flatten whitespace only for matching, never in the stored quote.
+1. **Input:** raw `{name, text}` objects, with `File API` used in the browser and file system in the CLI. Filename is only for provenance. File contents are never published by the browser.
+2. **Segmentation:** preserve original lines, make paragraph/numbered-clause blocks with `startLine` and `endLine`. Flatten whitespace only for matching, never in the stored quote.
 3. **Classification:** heading + explicit textual status → contract, addendum, draft, letter, unknown. Detect number in *content*, not name. Multiple matching numbers or an unrecognized type create a review issue.
-4. **Extraction:** independent candidates for supplier, amount and delivery date. Lexical patterns exclude payment, budgets, advance and penalties as contract price; delivery match excludes unrelated payment dates. Recognized date formats: ISO, \`dd.mm.yyyy\` and selected Russian long dates. Different explicit candidate values in the same document do not silently overwrite each other: ambiguous → \`null\`.
+4. **Extraction:** independent candidates for supplier, amount and delivery date. Lexical patterns exclude payment, budgets, advance and penalties as contract price; delivery match excludes unrelated payment dates. Recognized date formats: ISO, `dd.mm.yyyy` and selected Russian long dates. Different explicit candidate values in the same document do not silently overwrite each other: ambiguous → `null`.
 5. **Association:** group by contract ID. Reject duplicates as unreliable. Documents that cannot be linked are surfaced.
 6. **Temporal policy:** accept addendum modification iff status says signed by both parties, signing date is present and ≤ asOf, effective date present and ≤ asOf, base contract signed by asOf and parties are consistent when available. Otherwise preserve previous conditions and display review reason. Signed effective amendments are ordered by **effective date**; contradictory modifications at equal effective dates cause the affected field to become unavailable for review.
 7. **Proposals:** drafts/letters never change active conditions, even if they mention a future value. Their candidates are separately displayed.
-8. **Output:** \`{schemaVersion:'1.0',asOf,contracts,issues,documentCount}\`. Every populated field contains a verbatim source quote, document filename and line interval. \`null\` is the only representation of missing/inconclusive data.
+8. **Output:** `{schemaVersion:'1.0',asOf,contracts,issues,documentCount}`. Every populated field contains a verbatim source quote, document filename and line interval. `null` is the only representation of missing/inconclusive data.
 
 ### Illustrative model
 
-\`\`\`js
+```js
 {
   id: 'STN-101',
   supplier: 'ООО «Вектор Прибор»',
@@ -59,13 +59,13 @@ TXT ──┤  file input → engine.mjs → result object         ├──> Re
   proposals: [ /* not applied */ ],
   review: []
 }
-\`\`\`
+```
 
 This is an illustrative shape; the actual exact quote is preserved in full by the engine.
 
 ## Integration boundaries
 
-Core \`src/engine.mjs\` is a pure ESM module (no DOM or network). \`analyze(files,date)\` returns the full in-memory result, \`toPublicResult\` yields a stable public JSON DTO. The CLI \`scripts/analyze.mjs\` adapts it to a folder. The versioned [JSON Schema](schema/result.v1.json) defines the transport contract.
+Core `src/engine.mjs` is a pure ESM module (no DOM or network). `analyze(files,date)` returns the full in-memory result, `toPublicResult` yields a stable public JSON DTO. The CLI `scripts/analyze.mjs` adapts it to a folder. The versioned [JSON Schema](schema/result.v1.json) defines the transport contract.
 
 For integrations: trigger a batch through n8n or a scheduled job with a trusted runner. A future upload webhook should **not** use public GitHub Pages as a secret-bearing relay. If server-side user uploads are added, introduce authentication, object storage, a queue and worker. See [docs/integration.md](docs/integration.md).
 
@@ -73,10 +73,10 @@ For integrations: trigger a batch through n8n or a scheduled job with a trusted 
 
 - No GitHub secrets, LLM credentials, or API keys inside the browser.
 - User TXT stays in the browser; no analytics or external SDKs are requested.
-- Text nodes use \`textContent\` and \`createTextNode\` instead of inserting untrusted HTML.
+- Text nodes use `textContent` and `createTextNode` instead of inserting untrusted HTML.
 - Max 100 TXT / 2 MB each in the UI, duplicate filenames rejected to protect source addressing.
 - Synthetic fixture documents are public and committed only for demos. **Never commit confidential procurement documents.**
-- The engine reads textual signature labels: this is *not* cryptographic signature verification. \`needs review\` is operational guidance, not a legal verdict.
+- The engine reads textual signature labels: this is *not* cryptographic signature verification. `needs review` is operational guidance, not a legal verdict.
 
 ## Trade-offs
 
@@ -100,8 +100,8 @@ Do not multiply browser upload caps or run a GitHub job per user request. Evolve
 
 ## Extension seam: penalty rate
 
-Add \`penaltyRate\` as a new field extractor to \`engine.mjs\`, keep \`{value,evidence,changedBy,effective}\` and add cases to \`tests/\`. Do not confuse a daily percentage with a total cap. Existing UI evidence renderer can show another field without a new backend. This can be a useful live demo of extending the system with AI assistance and regression tests.
+Add `penaltyRate` as a new field extractor to `engine.mjs`, keep `{value,evidence,changedBy,effective}` and add cases to `tests/`. Do not confuse a daily percentage with a total cap. Existing UI evidence renderer can show another field without a new backend. This can be a useful live demo of extending the system with AI assistance and regression tests.
 
 ## Quality gate
 
-\`npm test\` tests the six accepted fixtures, new contracts, variations, missing values, contradictory documents, signed-at chronology, party matching, original citations and CLI. The CI workflow starts a static server and uses headless Chrome with \`?demo=1\` to verify that the complete DOM renders the expected document rows. A screenshot artifact is attached to PR builds for visual review. These checks establish regression coverage, **not** validity on all legal documents.
+`npm test` tests the six accepted fixtures, new contracts, variations, missing values, contradictory documents, signed-at chronology, party matching, original citations and CLI. The CI workflow starts a static server and uses headless Chrome with `?demo=1` to verify that the complete DOM renders the expected document rows. A screenshot artifact is attached to PR builds for visual review. These checks establish regression coverage, **not** validity on all legal documents.
