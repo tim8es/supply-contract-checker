@@ -98,7 +98,7 @@ async function main() {
     assert(proof.quote.includes('1 380 000'), 'source quote');
     assert(proof.highlights >= 1, 'selected original paragraph');
 
-    const uploaded = await evaluate(\`(async()=>{
+    const uploaded = await evaluate(`(async()=>{
       const txt='ДОГОВОР ПОСТАВКИ № XYZ-234\\nСтатус: подписан обеими сторонами 01.03.2026.\\n\\nПоставщик: ООО «Новый поставщик».\\n\\nЦена договора: 654 321 рублей.\\nСрок поставки: 18.03.2026.';
       const data=new DataTransfer();
       data.items.add(new File([txt],'custom.txt',{type:'text/plain'}));
@@ -107,7 +107,7 @@ async function main() {
       input.dispatchEvent(new Event('change',{bubbles:true}));
       await new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(document.querySelector('#rows').textContent.includes('XYZ-234')){clearInterval(t);resolve()}else if(++n>100){clearInterval(t);reject(Error('upload did not finish'))}},100)});
       return document.querySelector('#rows').innerText;
-    })()\`);
+    })()`);
     assert(uploaded.includes('654 321') && uploaded.includes('18.03.2026'), 'new TXT upload and extraction');
     console.log('Browser E2E OK: demo, delivery filter, source citation, new upload.');
   } finally {
