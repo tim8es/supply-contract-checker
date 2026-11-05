@@ -119,7 +119,7 @@ function deadlineCandidates(doc, proposed) {
     const direct = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на)/iu.test(flat);
     if (!direct) continue;
     // For "с OLD на NEW" the last date is the proposed new deadline.
-    const selected = proposed ? dates.at(-1) : dates[0];
+    const selected = proposed ? (dates.find(d => /\sна\s*$/iu.test(flat.slice(0, d.index))) || dates.at(-1)) : dates[0];
     found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
   }
   return best(found);
