@@ -58,6 +58,17 @@
         },
         "quote": {
           "type": "string"
+        },
+        "valueText": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Literal source token selected for the normalized field value."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "True only if source byte-range and value token pass validation; does not certify legal force."
         }
       }
     },
@@ -129,6 +140,12 @@
               "type": "null"
             }
           ]
+        },
+        "extraFields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/field"
+          }
         }
       }
     },
@@ -210,7 +227,20 @@
                 "$ref": "#/$defs/historyEntry"
               }
             }
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/historyEntry"
+            }
           }
+        },
+        "extraFields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/field"
+          },
+          "description": "Optional registered fields, such as penaltyRate in percent per day."
         }
       }
     },
