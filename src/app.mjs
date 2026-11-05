@@ -152,7 +152,7 @@ function renderProposals() {
   const host = $('proposals');
   host.replaceChildren();
   let count = 0;
-  for (const row of analysis?.rows || []) for (const proposal of row.proposals) {
+  for (const row of rowsVisible()) for (const proposal of row.proposals) {
     const item = el('div', null, 'proposal');
     item.append(el('div', '↗', 'proposal-badge'));
     const box = el('div', null, 'proposal-body');
@@ -227,11 +227,12 @@ async function loadFiles(files) {
 $('files').addEventListener('change', e => loadFiles([...e.target.files]));
 $('asof').addEventListener('change', recalculate);
 $('document-select').addEventListener('change', e => showDocument(e.target.value));
-$('search').addEventListener('input', e => { search = e.target.value; renderTable(); });
+$('search').addEventListener('input', e => { search = e.target.value; renderTable(); renderProposals(); });
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
   filter = button.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach(other => other.classList.toggle('active', other === button));
   renderTable();
+  renderProposals();
 }));
 $('demo').addEventListener('click', async () => {
   try {
