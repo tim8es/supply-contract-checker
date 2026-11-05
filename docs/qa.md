@@ -7,7 +7,7 @@ npm test
 node scripts/analyze.mjs --input documents --date 2026-03-10
 ```
 
-Current suite consists of **80 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
+Current suite consists of **81 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
 - basic acceptance (six supplied documents, expected amounts and deadlines);
 - exact provenance and non-invention of missing values;
 - new contract with different filename/number/amount/date;
