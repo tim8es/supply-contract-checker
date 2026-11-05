@@ -190,6 +190,73 @@
           "items": {
             "$ref": "#/$defs/proposal"
           }
+        },
+        "history": {
+          "type": "object",
+          "required": [
+            "amount",
+            "deadline"
+          ],
+          "properties": {
+            "amount": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/historyEntry"
+              }
+            },
+            "deadline": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/historyEntry"
+              }
+            }
+          }
+        }
+      }
+    },
+    "historyEntry": {
+      "type": "object",
+      "required": [
+        "value",
+        "evidence",
+        "file",
+        "effective",
+        "outcome"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/evidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "effective": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "base",
+            "applied",
+            "unresolved",
+            "conflict"
+          ]
         }
       }
     }

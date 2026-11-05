@@ -130,3 +130,19 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
 @media(max-width:830px){.metrics{grid-template-columns:1fr 1fr}.page-heading{align-items:start}.page-heading h1 .light{display:block}.workspace-aside{grid-template-columns:1fr}}
 @media(max-width:620px){.content{padding:23px 14px}.topbar{padding:12px 14px}.topbar-tag{display:none}.page-heading{flex-direction:column}.date-control{width:100%}.upload-panel{flex-wrap:wrap;padding:17px}.upload-copy{flex:1 1 calc(100% - 70px)}.upload-actions{width:100%}.upload-actions .button{flex:1}.metrics{gap:9px}.metric{padding:15px}.metric strong{font-size:26px}.metric-label{font-size:11px}.card-head{padding:17px 15px}.card-head .button{padding:8px}.table-controls{padding:0 14px 15px}.search,.search input{width:100%;max-width:none}.segmented{width:100%;justify-content:space-around}.segmented button{flex:1}th,td{padding:12px 10px}.footer{flex-direction:column}.stack{padding:0 14px 15px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+
+/* Source-backed term history inside the inspector */
+.term-history{margin-top:23px;padding-top:16px;border-top:1px solid #e5ebf4}
+.term-history h3{margin:0 0 13px;font-size:12px;color:#536b90;letter-spacing:.3px}
+.term-timeline{list-style:none;margin:0;padding:0 0 0 12px;border-left:2px solid #dee8f7}
+.term-event{position:relative;margin:0 0 16px;padding:0 0 0 13px}
+.term-event::before{content:"";position:absolute;top:5px;left:-18px;width:9px;height:9px;background:#a9b9d4;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #dce4ee}
+.term-event.active::before{background:#2c62db;box-shadow:0 0 0 2px #dce8ff}
+.term-event-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px}
+.term-event-head strong{font-size:12px;font-weight:800;color:#2a3f5c}
+.term-event-status{font-size:10px;color:#70839f}
+.term-event.active .term-event-status{color:#167d61;font-weight:800}
+.term-event-meta{font-size:10px;color:#8597af;margin-top:4px;overflow-wrap:anywhere}
+.term-event .inspect-action{font-size:10px;margin-top:6px}
+.term-event-note{color:#ab791d;font-size:10px;display:block;margin-top:5px}

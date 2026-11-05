@@ -43,6 +43,48 @@ function showDocument(name, from = 0, to = from) {
   } else source.scrollTop = 0;
 }
 
+function renderFieldHistory(row, label) {
+  const field = label === 'Сумма договора' ? 'amount'
+    : label === 'Срок поставки' ? 'deadline' : null;
+  const entries = field && row?.history?.[field];
+  if (!entries || entries.length < 2) return;
+  const history = el('section', null, 'term-history');
+  history.append(el('h3', 'История условия'));
+  const timeline = el('ol', null, 'term-timeline');
+  for (const entry of entries) {
+    const active = !!row[field] && entry.evidence &&
+      entry.evidence.file === row[field].evidence?.file &&
+      entry.value === row[field].value;
+    const item = el('li', null, 'term-event' + (active ? ' active' : ''));
+    const heading = el('div', null, 'term-event-head');
+    const value = entry.value == null ? 'Значение не определено'
+      : field === 'amount' ? money(entry.value) : dateLabel(entry.value);
+    heading.append(el('strong', value));
+    heading.append(el('span', active ? 'Действует' :
+      entry.outcome === 'conflict' ? 'Конфликт' :
+      entry.outcome === 'unresolved' ? 'На проверку' :
+      entry.outcome === 'base' ? 'Исходное условие' : 'Заменено',
+    'term-event-status'));
+    item.append(heading);
+    const meta = el('div', entry.file + (entry.effective ? ' · с ' + dateLabel(entry.effective) : ''),
+      'term-event-meta');
+    item.append(meta);
+    if (entry.evidence) {
+      const jump = el('button', 'Открыть исходный абзац ↗', 'inspect-action');
+      jump.type = 'button';
+      jump.addEventListener('click', () => showDocument(entry.evidence.file,
+        entry.evidence.line, entry.evidence.endLine));
+      item.append(jump);
+    } else {
+      item.append(el('span', 'Требуется проверить формулировку изменения',
+        'term-event-note'));
+    }
+    timeline.append(item);
+  }
+  history.append(timeline);
+  $('inspect-content').append(history);
+}
+
 function inspect(row, field, value, evidence, description) {
   activeEvidence = evidence;
   $('inspect-title').textContent = row ? row.id + ' · ' + field : field;
@@ -70,7 +112,9 @@ function inspect(row, field, value, evidence, description) {
     showDocument(evidence.file, evidence.line, evidence.endLine || evidence.line);
   } else {
     content.append(el('p', 'Подтверждённого основания для этого значения нет. Поле требует ручной проверки.', 'issue'));
+    if (row?.review?.length) content.append(el('p', row.review.join(' · '), 'hint'));
   }
+  renderFieldHistory(row, field);
 }
 
 function sourceButton(row, field, data, format) {
@@ -87,7 +131,13 @@ function valueCell(row, field, formatter, label) {
   const data = row[field];
   cell.append(el('strong', data ? formatter(data.value) : 'Нет данных', 'value' + (data ? '' : ' missing')));
   if (data?.evidence) cell.append(sourceButton(row, label, data, formatter));
-  else cell.append(el('small', 'Требует проверки', 'hint'));
+  else {
+    const explain = el('button', '↗ Почему нет данных?', 'evidence-link');
+    explain.type = 'button';
+    explain.addEventListener('click', () => inspect(row, label, 'Нет данных', null,
+      'Значение не удалось подтвердить по загруженным документам'));
+    cell.append(explain);
+  }
   return cell;
 }
 

@@ -85,14 +85,17 @@ function priceCandidates(doc, proposed) {
       for (const match of flat.matchAll(anchor.re)) {
         const suffix = flat.slice(match.index + match[0].length, match.index + match[0].length + 220);
         // Phrasing must explicitly associate the price with a monetary value.
-        if (!/(?:составля(?:ет|ют)|установлен[аоы]?|равн[аоы]?|в\s+размере|определен[аоы]?|на\s+|[:—–-])/iu.test(suffix.slice(0, 100))) continue;
+        if (!/(?:составля(?:ет|ют)|установлен[аоы]?|равн[аоы]?|в\s+размере|определен[аоы]?|изменя(?:ется|ют|ть)|на\s+|[:—–-])/iu.test(suffix.slice(0, 100))) continue;
         const nums = [...suffix.matchAll(AMOUNT_RE)].filter(x => {
           const after = suffix.slice(x.index + x[0].length);
           return /^(?:\s*\([^)]{0,140}\))?\s*(?:рубл(?:ь|я|ей)|руб\.?|₽)/iu.test(after);
         });
         if (!nums.length) continue;
-        // In proposed changes "с OLD рублей на NEW рублей", OLD is NOT the proposal.
-        const num = proposed && nums.length > 1 ? nums.at(-1) : nums[0];
+        // The old value in "с OLD рублей на NEW рублей" must never become
+        // current value — even when this text is in a *signed* amendment.
+        const transition = nums.find((candidate, index) => index > 0 &&
+          /\sна\s*$/iu.test(suffix.slice(0, candidate.index)));
+        const num = transition || (proposed ? nums.at(-1) : nums[0]);
         const value = parseMoney(num[0]);
         if (value === null) continue;
         found.push({ ...result(doc, block, value, 'amount'), score: anchor.score });
@@ -118,8 +121,11 @@ function deadlineCandidates(doc, proposed) {
     if (!hasClearAnchor) continue;
     const direct = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на)/iu.test(flat);
     if (!direct) continue;
-    // For "с OLD на NEW" the last date is the proposed new deadline.
-    const selected = proposed ? (dates.find(d => /\sна\s*$/iu.test(flat.slice(0, d.index))) || dates.at(-1)) : dates[0];
+    // "с OLD на NEW": date following "на" is the replacement regardless
+    // of document status. A signed addendum may use the same wording as a letter.
+    const transition = dates.find((candidate, index) => index > 0 &&
+      /\sна\s*$/iu.test(flat.slice(0, candidate.index)));
+    const selected = transition || (proposed ? dates.at(-1) : dates[0]);
     found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
   }
   return best(found);
@@ -145,9 +151,10 @@ function signature(doc) {
 }
 function effectiveDate(doc) {
   for (const block of doc.blocks) {
+    const dateToken = String.raw`(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4}(?:\s*(?:года|г\.))?)`;
     const matches = [
-      /(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(?:с\s+)?(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu,
-      /дата\s+вступления\s+в\s+силу\s*[:—–-]\s*(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu
+      new RegExp(String.raw`(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(?:с\s+)?` + dateToken, 'iu'),
+      new RegExp(String.raw`дата\s+вступления\s+в\s+силу\s*[:—–-]\s*` + dateToken, 'iu')
     ];
     for (const re of matches) {
       const m = block.text.match(re);
@@ -166,6 +173,25 @@ function kindOf(lines) {
   if (/(?:договор|контракт)\s+(?:поставки|№)/iu.test(heading)) return 'contract';
   if (/письмо|уведомлени|предложени/iu.test(heading)) return 'letter';
   return 'unknown';
+}
+
+/**
+ * Detect that a signed amendment addresses a field even when the new value
+ * cannot be extracted. Without this signal the previous contract value would
+ * incorrectly remain visible as a confirmed, current value.
+ */
+function termModificationIntents(doc) {
+  const intents = { amount: null, deadline: null };
+  if (doc.kind !== 'amendment') return intents;
+  for (const block of doc.blocks) {
+    const text = normalize(block.text);
+    if (/(?:остальные\s+условия|без\s+изменений|не\s+изменя(?:ются|ется))/iu.test(text)) continue;
+    const modification = /(?:измен|излож|установ|составля|определя|перенес|перенести|продл|будет|нов(?:ую|ой|ая|ый)|теперь|\bстановится\b)/iu.test(text);
+    if (!modification) continue;
+    if (/(?:общ(?:ая|ую)\s+(?:стоимость|сумма|стоимости|сумму)|сумм[ауы]\s+(?:договора|контракта|поставки)|цен[ауы]\s+(?:договора|контракта|поставки)|стоимост[ьи]\s+(?:договора|контракта|поставки))/iu.test(text)) intents.amount ??= citation(doc, block);
+    if (/(?:срок\s+(?:поставки|отгрузки)|дат[ауы]\s+поставки|поставк[аиуы]?\s+(?:оборудования|товара|осуществляется)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка))/iu.test(text)) intents.deadline ??= citation(doc, block);
+  }
+  return intents;
 }
 
 export function parseDocument({ name, text }) {
@@ -193,6 +219,7 @@ export function parseDocument({ name, text }) {
   if (deadline.ambiguous) doc.issues.push('Неоднозначный срок поставки');
   if (proposedAmount.ambiguous || proposedDeadline.ambiguous) doc.issues.push('Неоднозначное предложение об изменении');
   doc.effective = effectiveDate(doc);
+  doc.termIntents = termModificationIntents(doc);
   const statusLine = lines.find(line => /^\s*Статус\s*:/iu.test(line.text))?.text || '';
   const signedMatch = [...statusLine.matchAll(DATE_RE)].find(m => toIso(m[0]));
   doc.signedAt = doc.signature === 'signed' && signedMatch
@@ -206,14 +233,40 @@ function fieldValue(field) {
 }
 function apply(row, doc) {
   for (const field of ['amount', 'deadline']) {
-    if (!doc[field] || row.conflictFields.has(field)) continue;
+    if (!doc[field] && !doc.termIntents[field]) continue;
+    const effective = doc.effective.value;
+    const existingConflict = row.conflictFields.get(field);
+    // A later signed correction can repair an earlier unresolved field;
+    // another same-day document must not arbitrarily resolve a conflict.
+    if (existingConflict && existingConflict === effective) continue;
     const previous = row[field];
-    if (previous?.effective === doc.effective.value && previous.value !== doc[field].value) {
-      row[field] = null; row.conflictFields.add(field);
-      row.review.push('Противоречащие подписанные изменения: ' + field + ' на дату ' + doc.effective.value);
+    if (previous?.effective === effective && previous.value !== doc[field]?.value) {
+      row.history[field].push({
+        value: doc[field]?.value ?? null, evidence: doc[field]?.evidence ?? null,
+        file: doc.name, effective, outcome: 'conflict'
+      });
+      row[field] = null;
+      row.conflictFields.set(field, effective);
+      row.review.push('Противоречащие подписанные изменения: ' + field + ' на дату ' + effective);
       continue;
     }
-    row[field] = { ...fieldValue(doc[field]), changedBy: doc.name, effective: doc.effective.value };
+    if (!doc[field]) {
+      row.history[field].push({
+        value: null, evidence: doc.termIntents[field] ?? null,
+        file: doc.name, effective, outcome: 'unresolved'
+      });
+      row[field] = null;
+      row.conflictFields.set(field, effective);
+      row.review.push('Подписанное изменение затрагивает поле ' + field +
+        ', но новое значение нельзя достоверно определить: ' + doc.name);
+      continue;
+    }
+    row.conflictFields.delete(field);
+    row.history[field].push({
+      value: doc[field].value, evidence: doc[field].evidence,
+      file: doc.name, effective, outcome: 'applied'
+    });
+    row[field] = { ...fieldValue(doc[field]), changedBy: doc.name, effective };
   }
 }
 export function analyze(files, asOf = '2026-03-10') {
@@ -243,9 +296,26 @@ export function analyze(files, asOf = '2026-03-10') {
       amount: fieldValue(base.amount), deadline: fieldValue(base.deadline),
       source: base.name, documents: [base.name, ...related.map(x => x.name)],
       proposals: [], review: [...base.issues],
-      conflictFields: new Set() };
-    if (base.signature !== 'signed') row.review.push('Подписание исходного договора не подтверждено');
-    else if (!base.signedAt || base.signedAt > asOf) row.review.push('Дата подписания основного договора не подтверждена на дату проверки');
+      history: {
+        amount: base.amount ? [{
+          value: base.amount.value, evidence: base.amount.evidence,
+          file: base.name, effective: null, outcome: 'base'
+        }] : [],
+        deadline: base.deadline ? [{
+          value: base.deadline.value, evidence: base.deadline.evidence,
+          file: base.name, effective: null, outcome: 'base'
+        }] : []
+      },
+      conflictFields: new Map() };
+    if (base.signature !== 'signed') {
+      row.amount = null;
+      row.deadline = null;
+      row.review.push('Подписание исходного договора не подтверждено');
+    } else if (!base.signedAt || base.signedAt > asOf) {
+      row.amount = null;
+      row.deadline = null;
+      row.review.push('Дата подписания основного договора не подтверждена на дату проверки');
+    }
     const amendments = related.filter(x => x.kind === 'amendment')
       .sort((a, b) => (a.effective?.value || '').localeCompare(b.effective?.value || ''));
     for (const doc of amendments) {
