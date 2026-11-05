@@ -44,6 +44,10 @@ function fieldCell(field, format) {
   if (!field) { cell.append(textElement('span', 'Нет данных', 'muted')); return cell; }
   cell.append(textElement('span', format(field.value), 'data-value'));
   cell.append(sourceButton(field.evidence));
+  const details = document.createElement('details');
+  details.append(textElement('summary', 'Точная цитата'));
+  details.append(textElement('blockquote', field.evidence.quote, 'quote'));
+  cell.append(details);
   if (field.changedBy) cell.append(textElement('small', 'Изменено: ' + field.changedBy, 'muted'));
   return cell;
 }
