@@ -90,6 +90,8 @@ async function main() {
     await evaluate("document.querySelector('[data-filter=before]').click()");
     rows = await evaluate("document.querySelector('#rows').innerText");
     assert(rows.includes('STN-102') && !rows.includes('STN-101') && !rows.includes('STN-103'), 'delivery filter');
+    const filteredProposals = await evaluate("document.querySelector('#proposals').innerText");
+    assert(filteredProposals.includes('STN-102') && !filteredProposals.includes('STN-101'), 'proposal filter relevance');
 
     await evaluate("document.querySelector('[data-filter=all]').click()");
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(2) button').click()");
