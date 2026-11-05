@@ -1,3 +1,5 @@
+import { asEvidenceResult } from './evidence.mjs';
+
 /**
  * Supply Contract Checker / deterministic extraction core.
  * Inputs are user-supplied strings; rules never depend on fixture filenames or IDs.
@@ -57,8 +59,8 @@ function blocksFromLines(lines) {
 function citation(doc, block) {
   return { file: doc.name, line: block.startLine, endLine: block.endLine, quote: block.text };
 }
-function result(doc, block, value, reason) {
-  return { value, evidence: citation(doc, block), reason };
+function result(doc, block, value, reason, valueText = null) {
+  return { value, evidence: { ...citation(doc, block), valueText }, reason };
 }
 function best(candidates) {
   if (candidates.length === 0) return { selected: null, ambiguous: false };
@@ -98,7 +100,7 @@ function priceCandidates(doc, proposed) {
         const num = transition || (proposed ? nums.at(-1) : nums[0]);
         const value = parseMoney(num[0]);
         if (value === null) continue;
-        found.push({ ...result(doc, block, value, 'amount'), score: anchor.score });
+        found.push({ ...result(doc, block, value, 'amount', num[0]), score: anchor.score });
       }
     }
   }
@@ -114,7 +116,7 @@ function deadlineCandidates(doc, proposed) {
     const isProposal = ['draft','letter'].includes(doc.kind) || /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
     if (proposed !== isProposal) continue;
     const dates = [...flat.matchAll(DATE_RE)]
-      .map(match => ({ value: toIso(match[0]), index: match.index }))
+      .map(match => ({ value: toIso(match[0]), index: match.index, raw:match[0] }))
       .filter(match => match.value);
     if (!dates.length) continue;
     const hasClearAnchor = /(?:срок\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/iu.test(flat);
@@ -126,7 +128,7 @@ function deadlineCandidates(doc, proposed) {
     const transition = dates.find((candidate, index) => index > 0 &&
       /\sна\s*$/iu.test(flat.slice(0, candidate.index)));
     const selected = transition || (proposed ? dates.at(-1) : dates[0]);
-    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
+    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline', selected.raw), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
   }
   return best(found);
 }
@@ -211,10 +213,18 @@ export function parseDocument({ name, text }) {
   const deadline = deadlineCandidates(doc, false);
   const proposedAmount = priceCandidates(doc, true);
   const proposedDeadline = deadlineCandidates(doc, true);
-  doc.amount = amount.selected;
-  doc.deadline = deadline.selected;
-  doc.proposedAmount = proposedAmount.selected;
-  doc.proposedDeadline = proposedDeadline.selected;
+  // Shared source-grounding gate. Extraction can only return fields that
+  // have a verbatim line span AND a recoverable token for the claimed value.
+  const verified = (candidate, tokenParser, field) => {
+    if (!candidate) return null;
+    const assessment = asEvidenceResult(doc, candidate, tokenParser);
+    doc.issues.push(...assessment.issues.map(issue => field + ': ' + issue));
+    return assessment.candidate;
+  };
+  doc.amount = verified(amount.selected, parseMoney, 'Сумма');
+  doc.deadline = verified(deadline.selected, toIso, 'Срок');
+  doc.proposedAmount = verified(proposedAmount.selected, parseMoney, 'Предложение суммы');
+  doc.proposedDeadline = verified(proposedDeadline.selected, toIso, 'Предложение срока');
   if (amount.ambiguous) doc.issues.push('Неоднозначная сумма');
   if (deadline.ambiguous) doc.issues.push('Неоднозначный срок поставки');
   if (proposedAmount.ambiguous || proposedDeadline.ambiguous) doc.issues.push('Неоднозначное предложение об изменении');
