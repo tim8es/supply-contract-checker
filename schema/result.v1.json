@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tim8es/supply-contract-checker/blob/main/schema/result.v1.json",
+  "title": "Semantic TextNavigator analysis result",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "asOf",
+    "contracts",
+    "issues",
+    "documentCount"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "asOf": {
+      "type": "string",
+      "format": "date"
+    },
+    "documentCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contract"
+      }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "endLine",
+        "quote"
+      ],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quote": {
+          "type": "string"
+        }
+      }
+    },
+    "field": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "value",
+        "evidence",
+        "changedBy",
+        "effective"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "changedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effective": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "required": [
+        "file",
+        "kind",
+        "amount",
+        "deadline"
+      ],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "draft",
+            "letter"
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/field"
+        },
+        "deadline": {
+          "$ref": "#/$defs/field"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/evidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": [
+        "id",
+        "supplier",
+        "amount",
+        "deadline",
+        "proposals",
+        "review",
+        "documents",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "supplier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supplierEvidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/evidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/field"
+        },
+        "deadline": {
+          "$ref": "#/$defs/field"
+        },
+        "source": {
+          "type": "string"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "proposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/proposal"
+          }
+        }
+      }
+    }
+  }
+}
