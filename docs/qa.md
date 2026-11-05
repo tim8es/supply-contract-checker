@@ -28,7 +28,7 @@ GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: l
 2. STN-101 → amount 1 380 000 ₽; deadline 30.04.2026. Click each **«Проверить источник»**. The inspector must cite `02_amendment_signed.txt`, exact paragraph and line; source text must highlight that paragraph.
 3. STN-102 → amount 840 000 ₽, deadline 20.03.2026. The letter proposing 27.03.2026 must remain a separate non-effective proposal. Clicking its citation opens `05_supplier_email.txt`.
 4. STN-103 → **«Нет данных»** amount; 30.04.2026 deadline. The budget limit 600 000 ₽ must not be shown as the contract value.
-5. Click «До 01.04.2026»: expect only STN-102. «На проверку»: expect STN-103. Use search by number/supplier.
+5. Click «До 01.04.2026»: expect only STN-102 and only its unsanctioned deadline proposal. «На проверку»: expect STN-103. Use search by number/supplier.
 6. Change the date to 28.02.2026: STN-101 should return original 1 200 000 ₽ and 15.04.2026; as of 10.03.2026 the signed amendment applies.
 7. Download JSON: expect `schemaVersion=1.0`, date, 3 contracts, 2 separate proposals and original quotations.
 8. Modify the numeric amount or deadline in one TXT, upload updated set, verify changed number and quote. Rename TXT files: results must depend on text, not filename.
