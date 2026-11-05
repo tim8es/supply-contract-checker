@@ -24,19 +24,24 @@ const server = createServer(async (req, res) => {
   } catch { res.writeHead(404).end('Not found'); }
 });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function waitForChrome() {
-  for (let i = 0; i < 60; i++) {
+async function waitForChrome(profileDir, child) {
+  for (let i = 0; i < 150; i++) {
+    if (child.exitCode !== null) throw new Error('Chrome exited before opening CDP: exit ' + child.exitCode);
     try {
-      const response = await fetch('http://127.0.0.1:9223/json/list');
-      if (response.ok) {
-        const targets = await response.json();
-        const page = targets.find(x => x.type === 'page');
-        if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
+      const active = await readFile(join(profileDir, 'DevToolsActivePort'), 'utf8');
+      const port = Number(active.split('\\n')[0]);
+      if (Number.isInteger(port) && port > 0) {
+        const response = await fetch('http://127.0.0.1:' + port + '/json/list');
+        if (response.ok) {
+          const targets = await response.json();
+          const page = targets.find(x => x.type === 'page');
+          if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
+        }
       }
     } catch {}
     await delay(200);
   }
-  throw new Error('Chrome DevTools never became available');
+  throw new Error('Chrome DevTools unavailable after 30 seconds');
 }
 function makeCDP(socket) {
   let nextId = 1;
@@ -68,10 +73,10 @@ async function main() {
     const port = server.address().port;
     chrome = spawn(chromePath, [
       '--headless=new','--disable-gpu','--disable-dev-shm-usage','--no-sandbox',
-      '--remote-debugging-port=9223','--remote-allow-origins=*',
+      '--remote-debugging-port=0','--remote-allow-origins=*',
       '--user-data-dir=' + dir, 'http://127.0.0.1:' + port + '/?demo=1'
     ], { stdio: 'ignore' });
-    const target = await waitForChrome();
+    const target = await waitForChrome(dir, chrome);
     ws = new WebSocket(target);
     await new Promise((resolve, reject) => {
       ws.addEventListener('open', resolve, { once: true });
