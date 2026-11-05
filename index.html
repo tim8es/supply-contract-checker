@@ -3,40 +3,118 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Supply Contract Checker</title>
-  <link rel="stylesheet" href="styles.css">
-  <script type="module" src="src/app.mjs"></script>
+  <meta name="theme-color" content="#f5f7fa">
+  <meta name="description" content="Проверка действующих условий договоров поставки с доказательствами из исходных TXT-документов.">
+  <title>Semantic TextNavigator — условия поставок</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.mjs"></script>
 </head>
 <body>
-  <main class="container">
-    <header>
-      <p class="eyebrow">Semantic TextNavigator · проверка условий поставок</p>
-      <h1>Договоры поставки</h1>
-      <p class="muted">Действующие суммы и сроки с точной цитатой. Файлы обрабатываются в вашем браузере.</p>
-    </header>
-    <section class="panel controls">
-      <label class="upload">Загрузить TXT-файлы<input id="files" type="file" multiple accept=".txt,text/plain"></label>
-      <button type="button" id="demo" class="secondary">Загрузить учебные документы</button>
-      <label>Дата проверки <input type="date" id="asof" value="2026-03-10"></label>
-      <p id="upload-message" class="muted" role="status">Выберите файлы или откройте учебный набор.</p>
-    </section>
-    <section class="panel">
-      <div class="section-title">
-        <div><h2>Действующие условия</h2><p class="muted">Нажмите на основание, чтобы открыть исходный абзац.</p></div>
-        <div class="filters"><button type="button" id="all" class="secondary">Все договоры</button><button type="button" id="before">Поставка до 01.04.2026</button></div>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><strong>TextNavigator</strong><small>Contract Intelligence</small></div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>Договор</th><th>Поставщик</th><th>Сумма</th><th>Срок поставки</th><th>Проверка</th></tr></thead><tbody id="contracts"><tr><td colspan="5" class="muted">Документы ещё не загружены.</td></tr></tbody></table></div>
-      <p id="filter-message" class="muted"></p><div id="issues" role="status"></div>
-    </section>
-    <section class="panel">
-      <h2>Предложения и проекты</h2>
-      <div id="proposals" class="muted">После загрузки здесь появятся несогласованные изменения.</div>
-    </section>
-    <section class="panel">
-      <div class="section-title"><div><h2>Исходный документ</h2><p class="muted">Текст без преобразования, строки пронумерованы.</p></div><label>Файл <select id="document-select"><option>Нет файлов</option></select></label></div>
-      <div id="source" class="source" aria-live="polite">Выберите основание в таблице.</div>
-    </section>
-    <footer class="muted">Учебный прототип. Автоматическое извлечение не заменяет проверку специалистом.</footer>
-  </main>
+      <div class="topbar-right">
+        <span class="topbar-tag"><span class="pulse"></span> Локальный анализ</span>
+        <a href="https://github.com/tim8es/supply-contract-checker" target="_blank" rel="noopener noreferrer" class="topbar-link">Исходный код ↗</a>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="page-heading">
+        <div>
+          <p class="overline">РАБОЧАЯ ОБЛАСТЬ ЗАКУПОК <span class="slash">/</span> РЕЕСТР</p>
+          <h1>Условия поставок <span class="light">под контролем.</span></h1>
+          <p class="subtitle">Действующие значения, история изменений и основания — из исходных документов, без догадок.</p>
+        </div>
+        <div class="date-control">
+          <label for="asof">На дату проверки</label>
+          <input id="asof" type="date" value="2026-03-10" aria-label="Дата проверки">
+        </div>
+      </div>
+
+      <section class="upload-panel" aria-label="Загрузка материалов">
+        <div class="upload-icon" aria-hidden="true">↑</div>
+        <div class="upload-copy"><strong>Загрузите договоры и связанные документы</strong>
+          <span>Несколько TXT-файлов · UTF-8 · обработка в браузере · до 2 МБ на файл</span>
+        </div>
+        <div class="upload-actions">
+          <label class="button primary" for="files">+ Добавить TXT</label>
+          <input type="file" id="files" multiple accept=".txt,text/plain" class="sr-only" aria-label="Загрузить TXT-файлы">
+          <button id="demo" class="button secondary" type="button">Открыть пример</button>
+        </div>
+      </section>
+      <p id="message" role="status" class="feedback" aria-live="polite">Загрузите файлы или откройте учебный набор из шести документов.</p>
+
+      <section class="metrics" aria-label="Сводка">
+        <article class="metric"><div class="metric-label">Договоров <span class="metric-icon">▦</span></div><strong id="metric-count">—</strong><small>найдено в документах</small></article>
+        <article class="metric"><div class="metric-label">Проверяемых условий <span class="metric-icon">◈</span></div><strong id="metric-confirmed">—</strong><small>суммы и сроки с цитатой</small></article>
+        <article class="metric"><div class="metric-label">Требуют внимания <span class="metric-icon">!</span></div><strong id="metric-review">—</strong><small>пропуски и противоречия</small></article>
+        <article class="metric"><div class="metric-label">Предложений об изменении <span class="metric-icon">↗</span></div><strong id="metric-proposals">—</strong><small>не применены к условиям</small></article>
+      </section>
+
+      <section class="workspace" aria-label="Проверка договоров">
+        <div class="workspace-main">
+          <div class="card registry">
+            <div class="card-head">
+              <div><p class="overline">01 / РЕЕСТР</p><h2>Действующие условия</h2><p class="hint">Выберите значение, чтобы проверить основание.</p></div>
+              <button class="button ghost" id="export" type="button" disabled>↓ Экспорт JSON</button>
+            </div>
+            <div class="table-controls">
+              <div class="segmented" role="group" aria-label="Фильтр договоров">
+                <button type="button" class="active" data-filter="all">Все</button>
+                <button type="button" data-filter="before">До 01.04.2026</button>
+                <button type="button" data-filter="review">На проверку</button>
+              </div>
+              <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>ДОГОВОР / ПОСТАВЩИК</th><th>СУММА</th><th>ПОСТАВКА ДО</th><th>СТАТУС</th></tr></thead>
+                <tbody id="rows"><tr><td colspan="4" class="empty-cell">После загрузки появятся договоры и их условия.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="card-foot" id="table-count">Нет загруженных документов</div>
+          </div>
+
+          <div class="card proposals-card">
+            <div class="card-head"><div><p class="overline">02 / ИЗМЕНЕНИЯ</p><h2>Предложения и проекты</h2><p class="hint">Несогласованные изменения показаны отдельно и не влияют на действующие условия.</p></div></div>
+            <div id="proposals" class="stack"><p class="blank">Нет загруженных материалов.</p></div>
+          </div>
+
+          <div class="card issues-card" id="issues-card" hidden>
+            <div class="card-head"><div><p class="overline">03 / КОНТРОЛЬ</p><h2>Неразобранные материалы</h2></div></div>
+            <div id="issues" class="stack"></div>
+          </div>
+        </div>
+
+        <aside class="workspace-aside" aria-label="Проверка первоисточника">
+          <section class="card inspector">
+            <p class="overline">ИСТОЧНИК И ДОКАЗАТЕЛЬСТВО</p>
+            <h2 id="inspect-title">Инспектор условий</h2>
+            <p id="inspect-subtitle" class="hint">Нажмите на сумму или срок в таблице, чтобы увидеть точную цитату.</p>
+            <div id="inspect-content" class="inspect-placeholder">
+              <div class="inspector-glyph">“</div>
+              <p>Значение → документ → точная цитата → исходный абзац</p>
+            </div>
+          </section>
+
+          <section class="card document-card">
+            <div class="doc-head"><div><p class="overline">ОРИГИНАЛЬНЫЙ ТЕКСТ</p><h2>Документы</h2></div><span id="doc-count" class="counter">0</span></div>
+            <label class="select-label" for="document-select">Открытый файл</label>
+            <select id="document-select" disabled><option value="">Нет документов</option></select>
+            <div id="source" class="source-view" tabindex="0"><p class="blank">Исходный текст появится здесь.</p></div>
+            <p class="source-caption">Каждая строка пронумерована. Выделенный фрагмент — первоисточник значения.</p>
+          </section>
+        </aside>
+      </section>
+      <footer class="footer">
+        <span>Semantic TextNavigator / Demo 2026</span>
+        <span>Правила применимости ≠ проверка подлинности подписей. Требуется контроль специалиста.</span>
+      </footer>
+    </main>
+  </div>
 </body>
 </html>
