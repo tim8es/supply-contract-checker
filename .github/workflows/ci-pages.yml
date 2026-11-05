@@ -15,6 +15,20 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+      - name: Evaluate frozen synthetic holdout (non-gating quality report)
+        run: |
+          mkdir -p artifacts
+          node scripts/benchmark.mjs --output artifacts/benchmark.json --markdown artifacts/benchmark.md
+          cat artifacts/benchmark.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Export quality benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-benchmark
+          path: |
+            artifacts/benchmark.json
+            artifacts/benchmark.md
+          retention-days: 14
+          if-no-files-found: error
       - name: Browser E2E — filter, citation, upload
         run: node scripts/smoke-browser.mjs
       - name: Browser smoke test — six documents and dynamic table
