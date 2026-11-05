@@ -64,19 +64,37 @@ function assert(condition, label) {
   if (!condition) throw Error('E2E failed: ' + label);
 }
 async function main() {
-  const dir = await mkdtemp(join(tmpdir(), 'textnavigator-browser-'));
+  const tempDirs = [];
   const chromePath = process.env.CHROME_BIN || 'google-chrome';
   let chrome;
   let ws;
   try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const port = server.address().port;
-    chrome = spawn(chromePath, [
-      '--headless=new','--disable-gpu','--disable-dev-shm-usage','--no-sandbox',
-      '--remote-debugging-port=0','--remote-allow-origins=*',
-      '--user-data-dir=' + dir, 'http://127.0.0.1:' + port + '/?demo=1'
-    ], { stdio: 'ignore' });
-    const target = await waitForChrome(dir, chrome);
+    let target;
+    let chromeError = '';
+    // Retry only browser startup, never a failed product assertion.
+    // GitHub-hosted runners occasionally fail to expose CDP on first launch.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const dir = await mkdtemp(join(tmpdir(), 'textnavigator-browser-'));
+      tempDirs.push(dir);
+      chrome = spawn(chromePath, [
+        '--headless=new','--disable-gpu','--disable-dev-shm-usage','--no-sandbox',
+        '--no-first-run','--no-default-browser-check','--disable-background-networking',
+        '--remote-debugging-port=0','--remote-allow-origins=*',
+        '--user-data-dir=' + dir, 'http://127.0.0.1:' + port + '/?demo=1'
+      ], { stdio: ['ignore','ignore','pipe'] });
+      chrome.stderr.on('data', chunk => { chromeError = (chromeError + chunk.toString()).slice(-4000); });
+      try {
+        target = await waitForChrome(dir, chrome);
+        break;
+      } catch (error) {
+        chrome.kill('SIGTERM');
+        console.warn('Chrome startup attempt '+attempt+' failed: '+error.message);
+        if (attempt === 3) throw new Error(error.message + '; stderr='+chromeError.slice(-800));
+        await delay(400);
+      }
+    }
     ws = new WebSocket(target);
     await new Promise((resolve, reject) => {
       ws.addEventListener('open', resolve, { once: true });
@@ -108,6 +126,11 @@ async function main() {
     const normalizedTimeline = timeline.replace(/\s/gu, ' ');
     assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
+    await evaluate("document.querySelector('#rows tr:first-child td:nth-child(4) button').click()");
+    const penaltyProof=await evaluate("({value:document.querySelector('#inspect-content .fact-value')?.innerText,source:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText})");
+    assert(penaltyProof.source === '01_contract.txt', 'optional penalty evidence points at base contract');
+    assert(penaltyProof.value?.includes('0,1%') && penaltyProof.quote?.includes('0,1%'), 'optional term visible with daily rate');
+
 
     const uploaded = await evaluate(`(async()=>{
       const txt='ДОГОВОР ПОСТАВКИ № XYZ-234\\nСтатус: подписан обеими сторонами 01.03.2026.\\n\\nПоставщик: ООО «Новый поставщик».\\n\\nЦена договора: 654 321 рублей.\\nСрок поставки: 18.03.2026.';
@@ -125,7 +148,7 @@ async function main() {
     ws?.close();
     chrome?.kill('SIGTERM');
     await new Promise(resolve => server.close(resolve));
-    await rm(dir, { force:true, recursive:true, maxRetries:3, retryDelay:200 });
+    for (const dir of tempDirs) await rm(dir, { force:true, recursive:true, maxRetries:3, retryDelay:200 });
   }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,3 +1,5 @@
+import { asEvidenceResult } from './evidence.mjs';
+
 /**
  * Supply Contract Checker / deterministic extraction core.
  * Inputs are user-supplied strings; rules never depend on fixture filenames or IDs.
@@ -57,8 +59,8 @@ function blocksFromLines(lines) {
 function citation(doc, block) {
   return { file: doc.name, line: block.startLine, endLine: block.endLine, quote: block.text };
 }
-function result(doc, block, value, reason) {
-  return { value, evidence: citation(doc, block), reason };
+function result(doc, block, value, reason, valueText = null) {
+  return { value, evidence: { ...citation(doc, block), valueText }, reason };
 }
 function best(candidates) {
   if (candidates.length === 0) return { selected: null, ambiguous: false };
@@ -98,7 +100,7 @@ function priceCandidates(doc, proposed) {
         const num = transition || (proposed ? nums.at(-1) : nums[0]);
         const value = parseMoney(num[0]);
         if (value === null) continue;
-        found.push({ ...result(doc, block, value, 'amount'), score: anchor.score });
+        found.push({ ...result(doc, block, value, 'amount', num[0]), score: anchor.score });
       }
     }
   }
@@ -114,7 +116,7 @@ function deadlineCandidates(doc, proposed) {
     const isProposal = ['draft','letter'].includes(doc.kind) || /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
     if (proposed !== isProposal) continue;
     const dates = [...flat.matchAll(DATE_RE)]
-      .map(match => ({ value: toIso(match[0]), index: match.index }))
+      .map(match => ({ value: toIso(match[0]), index: match.index, raw:match[0] }))
       .filter(match => match.value);
     if (!dates.length) continue;
     const hasClearAnchor = /(?:срок\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/iu.test(flat);
@@ -126,7 +128,7 @@ function deadlineCandidates(doc, proposed) {
     const transition = dates.find((candidate, index) => index > 0 &&
       /\sна\s*$/iu.test(flat.slice(0, candidate.index)));
     const selected = transition || (proposed ? dates.at(-1) : dates[0]);
-    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline'), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
+    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline', selected.raw), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
   }
   return best(found);
 }
@@ -211,10 +213,18 @@ export function parseDocument({ name, text }) {
   const deadline = deadlineCandidates(doc, false);
   const proposedAmount = priceCandidates(doc, true);
   const proposedDeadline = deadlineCandidates(doc, true);
-  doc.amount = amount.selected;
-  doc.deadline = deadline.selected;
-  doc.proposedAmount = proposedAmount.selected;
-  doc.proposedDeadline = proposedDeadline.selected;
+  // Shared source-grounding gate. Extraction can only return fields that
+  // have a verbatim line span AND a recoverable token for the claimed value.
+  const verified = (candidate, tokenParser, field) => {
+    if (!candidate) return null;
+    const assessment = asEvidenceResult(doc, candidate, tokenParser);
+    doc.issues.push(...assessment.issues.map(issue => field + ': ' + issue));
+    return assessment.candidate;
+  };
+  doc.amount = verified(amount.selected, parseMoney, 'Сумма');
+  doc.deadline = verified(deadline.selected, toIso, 'Срок');
+  doc.proposedAmount = verified(proposedAmount.selected, parseMoney, 'Предложение суммы');
+  doc.proposedDeadline = verified(proposedDeadline.selected, toIso, 'Предложение срока');
   if (amount.ambiguous) doc.issues.push('Неоднозначная сумма');
   if (deadline.ambiguous) doc.issues.push('Неоднозначный срок поставки');
   if (proposedAmount.ambiguous || proposedDeadline.ambiguous) doc.issues.push('Неоднозначное предложение об изменении');
@@ -231,31 +241,42 @@ function fieldValue(field) {
   return field ? { value: field.value, evidence: field.evidence, changedBy: field.changedBy ?? null,
     effective: field.effective ?? null } : null;
 }
-function apply(row, doc) {
-  for (const field of ['amount', 'deadline']) {
-    if (!doc[field] && !doc.termIntents[field]) continue;
+function documentField(doc, key) {
+  return key === 'amount' || key === 'deadline' ? doc[key] : doc.extraFields?.[key] ?? null;
+}
+function rowField(row, key) {
+  return key === 'amount' || key === 'deadline' ? row[key] : row.extraFields?.[key] ?? null;
+}
+function setRowField(row,key,value) {
+  if (key === 'amount' || key === 'deadline') row[key]=value;
+  else row.extraFields[key]=value;
+}
+function apply(row, doc, fields=['amount','deadline']) {
+  for (const field of fields) {
+    const next = documentField(doc,field);
+    if (!next && !doc.termIntents[field]) continue;
     const effective = doc.effective.value;
     const existingConflict = row.conflictFields.get(field);
     // A later signed correction can repair an earlier unresolved field;
     // another same-day document must not arbitrarily resolve a conflict.
     if (existingConflict && existingConflict === effective) continue;
-    const previous = row[field];
-    if (previous?.effective === effective && previous.value !== doc[field]?.value) {
+    const previous = rowField(row,field);
+    if (previous?.effective === effective && previous.value !== next?.value) {
       row.history[field].push({
-        value: doc[field]?.value ?? null, evidence: doc[field]?.evidence ?? null,
+        value: next?.value ?? null, evidence: next?.evidence ?? null,
         file: doc.name, effective, outcome: 'conflict'
       });
-      row[field] = null;
+      setRowField(row,field,null);
       row.conflictFields.set(field, effective);
       row.review.push('Противоречащие подписанные изменения: ' + field + ' на дату ' + effective);
       continue;
     }
-    if (!doc[field]) {
+    if (!next) {
       row.history[field].push({
         value: null, evidence: doc.termIntents[field] ?? null,
         file: doc.name, effective, outcome: 'unresolved'
       });
-      row[field] = null;
+      setRowField(row,field,null);
       row.conflictFields.set(field, effective);
       row.review.push('Подписанное изменение затрагивает поле ' + field +
         ', но новое значение нельзя достоверно определить: ' + doc.name);
@@ -263,16 +284,51 @@ function apply(row, doc) {
     }
     row.conflictFields.delete(field);
     row.history[field].push({
-      value: doc[field].value, evidence: doc[field].evidence,
+      value: next.value, evidence: next.evidence,
       file: doc.name, effective, outcome: 'applied'
     });
-    row[field] = { ...fieldValue(doc[field]), changedBy: doc.name, effective };
+    setRowField(row,field,{ ...fieldValue(next), changedBy: doc.name, effective });
   }
 }
-export function analyze(files, asOf = '2026-03-10') {
+export function analyze(files, asOf = '2026-03-10', options = {}) {
   if (!toIso(asOf) || toIso(asOf) !== asOf) throw new Error('Некорректная дата проверки');
   if (!Array.isArray(files)) throw new TypeError('Ожидается массив TXT');
+  const extractors = options?.extractors ?? [];
+  if (!Array.isArray(extractors)) throw new TypeError('extractors must be an array');
+  const keys = new Set(['amount','deadline']);
+  for (const ext of extractors) {
+    if (!ext || !/^[a-z][A-Za-z0-9]{1,32}$/u.test(ext.key) || keys.has(ext.key) ||
+        typeof ext.extract !== 'function' || typeof ext.parseToken !== 'function' ||
+        typeof ext.changedIntent !== 'function') throw new TypeError('Invalid or duplicate contract term extractor');
+    keys.add(ext.key);
+  }
+  const fields=[...keys];
   const docs = files.map(parseDocument);
+  for (const doc of docs) {
+    doc.extraFields={};
+    doc.extraProposed={};
+    for (const ext of extractors) {
+      let candidate=null;
+      const proposedOnly=doc.kind==='draft' || doc.kind==='letter';
+      try {
+        candidate=ext.extract(doc,{proposedOnly}) ?? null;
+        if (candidate) {
+          const checked=asEvidenceResult(doc,candidate,ext.parseToken);
+          candidate=checked.candidate;
+          doc.issues.push(...checked.issues.map(x=>ext.key+': '+x));
+        }
+      } catch (error) {
+        doc.issues.push('Extractor '+ext.key+': '+error.message);
+      }
+      if (proposedOnly) doc.extraProposed[ext.key]=candidate;
+      else doc.extraFields[ext.key]=candidate;
+      try { doc.termIntents[ext.key]=ext.changedIntent(doc) ?? null; }
+      catch (error) {
+        doc.termIntents[ext.key]=null;
+        doc.issues.push('Intent '+ext.key+': '+error.message);
+      }
+    }
+  }
   const rows = [];
   const issues = [];
   const baseDocuments = docs.filter(x => x.kind === 'contract');
@@ -296,6 +352,7 @@ export function analyze(files, asOf = '2026-03-10') {
       amount: fieldValue(base.amount), deadline: fieldValue(base.deadline),
       source: base.name, documents: [base.name, ...related.map(x => x.name)],
       proposals: [], review: [...base.issues],
+      extraFields: Object.fromEntries(extractors.map(x=>[x.key,fieldValue(base.extraFields[x.key])])),
       history: {
         amount: base.amount ? [{
           value: base.amount.value, evidence: base.amount.evidence,
@@ -307,13 +364,22 @@ export function analyze(files, asOf = '2026-03-10') {
         }] : []
       },
       conflictFields: new Map() };
+    for (const ext of extractors) {
+      const candidate=base.extraFields[ext.key];
+      row.history[ext.key]=candidate ? [{
+        value:candidate.value,evidence:candidate.evidence,
+        file:base.name,effective:null,outcome:'base'
+      }] : [];
+    }
     if (base.signature !== 'signed') {
       row.amount = null;
       row.deadline = null;
+      for (const ext of extractors) row.extraFields[ext.key]=null;
       row.review.push('Подписание исходного договора не подтверждено');
     } else if (!base.signedAt || base.signedAt > asOf) {
       row.amount = null;
       row.deadline = null;
+      for (const ext of extractors) row.extraFields[ext.key]=null;
       row.review.push('Дата подписания основного договора не подтверждена на дату проверки');
     }
     const amendments = related.filter(x => x.kind === 'amendment')
@@ -330,13 +396,14 @@ export function analyze(files, asOf = '2026-03-10') {
           normalize(doc.supplier.value).toLocaleLowerCase('ru') !== normalize(base.supplier.value).toLocaleLowerCase('ru')) {
         row.review.push('Поставщик в допсоглашении не совпадает с договором: ' + doc.name);
       } else if (doc.effective.value <= asOf) {
-        if (base.signature === 'signed' && base.signedAt && base.signedAt <= asOf) apply(row, doc);
+        if (base.signature === 'signed' && base.signedAt && base.signedAt <= asOf) apply(row, doc,fields);
         else row.review.push('Изменение нельзя применить: основной договор не подтверждён');
       }
     }
     for (const doc of related.filter(x => x.kind === 'draft' || x.kind === 'letter')) {
       row.proposals.push({ kind: doc.kind, file: doc.name,
         amount: fieldValue(doc.proposedAmount), deadline: fieldValue(doc.proposedDeadline),
+        extraFields: Object.fromEntries(extractors.map(x=>[x.key,fieldValue(doc.extraProposed[x.key])])),
         evidence: doc.blocks[0] ? citation(doc, doc.blocks[0]) : null });
       row.review.push(...doc.issues.map(x => doc.name + ': ' + x));
     }

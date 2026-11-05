@@ -3,12 +3,14 @@
 import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, dirname, basename } from 'node:path';
 import { analyze, toPublicResult, toIso } from '../src/engine.mjs';
+import { penaltyRateExtractor } from '../src/extractors/penalty.mjs';
 
 export function argumentsFrom(args) {
-  const flags = { input: 'documents', date: '2026-03-10', output: null };
+  const flags = { input: 'documents', date: '2026-03-10', output: null, withPenalty: false };
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
     if (key === '--help' || key === '-h') return { help: true };
+    if (key === '--with-penalty') { flags.withPenalty=true; continue; }
     if (!['--input','--date','--output'].includes(key) || !args[i+1]) {
       throw new Error('Неизвестный или неполный аргумент: ' + key);
     }
@@ -18,7 +20,7 @@ export function argumentsFrom(args) {
   return flags;
 }
 
-export async function batch({ input, date, output }) {
+export async function batch({ input, date, output, withPenalty=false }) {
   const directory = resolve(input);
   const entries = await readdir(directory, { withFileTypes: true });
   const names = entries.filter(e => e.isFile() && extname(e.name).toLowerCase() === '.txt')
@@ -30,7 +32,8 @@ export async function batch({ input, date, output }) {
     if (Buffer.byteLength(text) > 2_000_000) throw new Error('Превышен размер 2 МБ: ' + basename(name));
     return { name, text };
   }));
-  const snapshot = toPublicResult(analyze(files, date));
+  const snapshot = toPublicResult(analyze(files, date,
+    withPenalty ? {extractors:[penaltyRateExtractor]} : {}));
   const json = JSON.stringify(snapshot, null, 2) + '\n';
   if (output) {
     await mkdir(dirname(resolve(output)), { recursive: true });
@@ -42,7 +45,7 @@ if (process.argv[1] && new URL(import.meta.url).pathname === resolve(process.arg
   try {
     const args = argumentsFrom(process.argv.slice(2));
     if (args.help) {
-      process.stdout.write('node scripts/analyze.mjs --input documents --date 2026-03-10 [--output artifacts/report.json]\n');
+      process.stdout.write('node scripts/analyze.mjs --input documents --date 2026-03-10 [--with-penalty] [--output artifacts/report.json]\n');
     } else {
       const { json, snapshot } = await batch(args);
       if (args.output) process.stderr.write('Saved: ' + args.output + ' (' + snapshot.contracts.length + ' contracts)\n');

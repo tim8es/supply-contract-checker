@@ -51,6 +51,58 @@ GET /batches/{jobId} (authorized)
 
 This protocol is **a proposed extension, not a currently available endpoint**. It requires a real API/service, access controls, artifact retention policy and privacy review.
 
+## Extend a field without modifying the policy engine
+
+The current example lives at `src/extractors/penalty.mjs`. It is a working
+optional extractor, not a mock. Import it into a Node batch or browser app:
+
+```js
+import { analyze } from './src/engine.mjs';
+import { penaltyRateExtractor } from './src/extractors/penalty.mjs';
+
+const result = analyze(files,'2026-03-10',{
+  extractors:[penaltyRateExtractor]
+});
+console.log(result.rows[0].extraFields.penaltyRate);
+// value: 0.1 == 0.1% / day, evidence: {file,line,endLine,quote,valueText,verified}
+```
+
+Each future field module exports a descriptor with these contracts:
+
+- `key`: stable unique machine-readable field identifier.
+- `label`: field title for UI.
+- `parseToken(token)`: deterministic normalization of literal text value.
+- `extract(doc,{proposedOnly})`: candidate with `value` and
+  `evidence` containing `file,line,endLine,quote,valueText`. Return null
+  if no trustworthy candidate.
+- `changedIntent(doc)`: evidence of a signed addendum that addresses the
+  field even if the replacement value cannot be extracted; return null if
+  unchanged.
+
+The common source validator checks that the quote is an exact contiguous
+line interval in the correct file and that `valueText` reconstructs
+`value`. It does not claim the quote is legally authoritative.
+The policy layer then applies signing/effectiveness rules, contradictions,
+history and proposals **for all registered fields**. Optional values are
+in `contract.extraFields` and `contract.history[key]` (and separate
+`proposal.extraFields` for unsigned proposals).
+
+CLI example: `node scripts/analyze.mjs --input documents --date 2026-03-10 --with-penalty`.
+The default two-field API is unchanged if the extractor is not registered.
+
+**Limit:** this is a programmatic extension, not a marketplace or runtime
+loader for arbitrary third-party packages. Only trusted extractors should
+be registered.
+
+## Quality benchmark
+
+Run `npm run benchmark` or inspect
+[benchmark/BASELINE.md](../benchmark/BASELINE.md). CI publishes machine-readable
+JSON and Markdown with scenario-level mistakes as a separate `quality-benchmark`
+artifact. The benchmark is deliberately non-gating so failures cannot be
+hidden by dropping difficult examples. This is a **synthetic** 36-case set,
+not a measurement of generalization to unseen real contracts.
+
 ## Optional small classifier/model
 
 A small CPU NER or sequence classifier could run in a **batch** worker/Action for unfamiliar formats, but it should only generate *candidate* `{field, value, source span}` items. A deterministic verifier must require the proposed span to exist verbatim in the source and evaluate signed/effective status separately. If provenance, temporal status or party identity is uncertain, return `null` + `review`. A model is not required for the acceptance scenario.
