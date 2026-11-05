@@ -77,3 +77,18 @@ test('unsigned draft with ambiguous or unrecognized values never invalidates the
  assert.equal(row.amount?.value,1200000);
  assert.equal(row.proposals.length,1);
 });
+
+test('signed amendment with written Russian effective date changes the amount',()=>{
+ const doc=amendment('Цена договора составляет 1 430 000 рублей.');
+ doc.text=doc.text.replace('в силу 01.03.2026.', 'в силу 5 марта 2026 года.');
+ const row=select([base(),doc]);
+ assert.equal(row.amount?.value,1430000);
+ assert.equal(row.amount?.effective,'2026-03-05');
+});
+
+test('later written Russian effective date must not apply prematurely',()=>{
+ const doc=amendment('Цена договора составляет 1 430 000 рублей.');
+ doc.text=doc.text.replace('в силу 01.03.2026.', 'в силу 12 марта 2026 года.');
+ const row=select([base(),doc]);
+ assert.equal(row.amount?.value,1200000);
+});
