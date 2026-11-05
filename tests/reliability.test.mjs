@@ -92,3 +92,11 @@ test('later written Russian effective date must not apply prematurely',()=>{
  const row=select([base(),doc]);
  assert.equal(row.amount?.value,1200000);
 });
+
+test('unchanged amount and deadline clause in a signed addendum cannot invalidate active fields',()=>{
+ const row=select([base(),amendment('Остальные условия договора, включая общую стоимость поставки и срок поставки, остаются без изменений.')]);
+ assert.equal(row.amount?.value,1200000);
+ assert.equal(row.deadline?.value,'2026-04-15');
+ assert.equal(row.history.amount.length,1);
+ assert.equal(row.history.deadline.length,1);
+});
