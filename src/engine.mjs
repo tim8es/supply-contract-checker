@@ -151,9 +151,10 @@ function signature(doc) {
 }
 function effectiveDate(doc) {
   for (const block of doc.blocks) {
+    const dateToken = String.raw`(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4}(?:\s*(?:года|г\.))?)`;
     const matches = [
-      /(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(?:с\s+)?(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu,
-      /дата\s+вступления\s+в\s+силу\s*[:—–-]\s*(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/iu
+      new RegExp(String.raw`(?:настоящее\s+соглашение\s+)?вступает\s+в\s+силу\s+(?:с\s+)?` + dateToken, 'iu'),
+      new RegExp(String.raw`дата\s+вступления\s+в\s+силу\s*[:—–-]\s*` + dateToken, 'iu')
     ];
     for (const re of matches) {
       const m = block.text.match(re);
