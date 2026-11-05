@@ -99,6 +99,9 @@ async function main() {
     assert(proof.file === '02_amendment_signed.txt', 'amended source file');
     assert(proof.quote.includes('1 380 000'), 'source quote');
     assert(proof.highlights >= 1, 'selected original paragraph');
+    const timeline = await evaluate("document.querySelector('.term-history')?.innerText || ''");
+    assert(timeline.includes('1 200 000') && timeline.includes('1 380 000'), 'old and new amount timeline');
+    assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
 
     const uploaded = await evaluate(`(async()=>{
       const txt='ДОГОВОР ПОСТАВКИ № XYZ-234\\nСтатус: подписан обеими сторонами 01.03.2026.\\n\\nПоставщик: ООО «Новый поставщик».\\n\\nЦена договора: 654 321 рублей.\\nСрок поставки: 18.03.2026.';
