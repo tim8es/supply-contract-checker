@@ -52,3 +52,15 @@ test('core actual results all carry source verification flag',()=>{
  assert.equal(row.amount.evidence.verified,true);
  assert.equal(row.deadline.evidence.verified,true);
 });
+
+test('financial amounts using NBSP remain grounded in the exact original quote',()=>{
+ const d={name:'nbsp.txt',text:'Общая стоимость поставки составляет 1\u00a0380\u00a0000 рублей.'};
+ const c={value:1380000,evidence:{file:'nbsp.txt',line:1,endLine:1,quote:d.text,valueText:'1 380 000'}};
+ assert.equal(verifyEvidence(d,c,parseMoney).valid,true);
+ assert.equal(c.evidence.quote,d.text);
+});
+test('an exact quote with an amount wrapped across lines remains grounded',()=>{
+ const d={name:'wrapped.txt',text:'Цена договора составляет 1 380\n000 рублей.'};
+ const c={value:1380000,evidence:{file:'wrapped.txt',line:1,endLine:2,quote:d.text,valueText:'1 380 000'}};
+ assert.equal(verifyEvidence(d,c,parseMoney).valid,true);
+});
