@@ -108,7 +108,7 @@ async function main() {
       await new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(document.querySelector('#rows').textContent.includes('XYZ-234')){clearInterval(t);resolve()}else if(++n>100){clearInterval(t);reject(Error('upload did not finish'))}},100)});
       return document.querySelector('#rows').innerText;
     })()`);
-    assert(uploaded.includes('654 321') && uploaded.includes('18.03.2026'), 'new TXT upload and extraction');
+    assert(uploaded.replace(/\s/gu, ' ').includes('654 321') && uploaded.includes('18.03.2026'), 'new TXT upload and extraction');
     console.log('Browser E2E OK: demo, delivery filter, source citation, new upload.');
   } finally {
     ws?.close();
