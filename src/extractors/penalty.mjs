@@ -13,7 +13,7 @@ export function parsePenaltyRate(token) {
 }
 const TERM=/(?:неустойк|пен[ия]|штрафн(?:ой|ая)\s+ставк)/iu;
 const PERCENT=/\d{1,3}(?:[,.]\d{1,4})?\s*%/gu;
-const CONTEXT=/(?:за\s+каждый\s+день|ежедневн|в\s+день|ставк[ауы]|размер\s+неустойки|неустойк)/iu;
+const DAILY=/(?:за\s+каждый\s+день|ежедневн|в\s+день|за\s+сутки)/iu;
 function isUnchanged(s) { return /(?:остальные\s+условия|оста(?:ётся|ется|ются|ются)\s+без\s+изменений|не\s+изменя(?:ется|ются)|без\s+изменений)/iu.test(s); }
 function proposed(doc) { return doc.kind === 'draft' || doc.kind === 'letter'; }
 
@@ -27,15 +27,22 @@ export const penaltyRateExtractor = {
     const found=[];
     for (const block of doc.blocks) {
       const text=block.text.replace(/\s+/gu,' ');
-      if (!TERM.test(text) || !CONTEXT.test(text) || isUnchanged(text)) continue;
+      if (!TERM.test(text) || !DAILY.test(text) || isUnchanged(text)) continue;
       const tokens=[...text.matchAll(PERCENT)].map(m=>({text:m[0],index:m.index,value:parsePenaltyRate(m[0])}))
         .filter(m=>m.value!==null);
       if (!tokens.length) continue;
-      // A cap ("не более 10%") is not the daily penalty rate.
-      const rates=tokens.filter(t=>!/не\s+более\s*$/iu.test(text.slice(0,t.index)));
+      // Rate must be *daily* and is not a maximum/overall penalty cap.
+      // Inspect the local sentence; caps may appear before the daily rate.
+      const isCap = t => {
+        const prefix = text.slice(Math.max(0,t.index-140),t.index).split(/[.;\n]/u).at(-1);
+        return /(?:не\s+более|не\s+выше|не\s+превышает|предельн|предел|максимальн|ограничен).{0,60}$/iu.test(prefix);
+      };
+      const rates=tokens.filter(t=>!isCap(t));
       if (!rates.length) continue;
       const replacement=rates.find((t,i)=>i>0 && /\sна\s*$/iu.test(text.slice(0,t.index)));
-      const selected=replacement || rates[0];
+      // More than one non-cap rate without "с OLD на NEW" is ambiguous.
+      const selected=replacement || (rates.length===1 ? rates[0] : null);
+      if (!selected) continue;
       found.push({
         value:selected.value,
         evidence:{file:doc.name,line:block.startLine,endLine:block.endLine,
