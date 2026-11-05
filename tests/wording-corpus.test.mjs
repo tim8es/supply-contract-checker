@@ -176,7 +176,8 @@ const cases = [
 
 function build({price,date},index) {
  const id='COR-'+String(200+index);
- return {name:'renamed-'+String(index)+'.txt',text:'ДОГОВОР ПОСТАВКИ № '+id+'\\nСтатус: подписан обеими сторонами 01.02.2026.\\n\\nПоставщик: ООО «Эксперимент».\\n\\n'+price+'\n'+date};
+ return {name:'renamed-'+String(index)+'.txt',
+  text:'ДОГОВОР ПОСТАВКИ № '+id+'\nСтатус: подписан обеими сторонами 01.02.2026.\n\nПоставщик: ООО «Эксперимент».\n\n'+price+'\n'+date};
 }
 for (const [index,scenario] of cases.entries()) {
  test('independent corpus ' + scenario.name,()=>{
