@@ -4,18 +4,18 @@
 
 [Открыть приложение](https://tim8es.github.io/supply-contract-checker/) · [Код](https://github.com/tim8es/supply-contract-checker) · [Архитектура](ARCHITECTURE.md) · [Интеграции](docs/integration.md) · [QA](docs/qa.md)
 
-> Для демонстрации после объединения PR можно открыть сайт с параметром \`?demo=1\` — учебные TXT загрузятся автоматически. Пока PR не объединён, опубликованный сайт продолжает показывать исходную версию из main.
+> Для демонстрации после объединения PR можно открыть сайт с параметром `?demo=1` — учебные TXT загрузятся автоматически. Пока PR не объединён, опубликованный сайт продолжает показывать исходную версию из main.
 
 ## Запуск
 
 **Без платных API, аккаунтов моделей, базы данных и npm-зависимостей.**
 
 - Требуется браузер с поддержкой ES-модулей. Для тестов и CLI — Node.js **22+**.
-- Локальный UI: \`python3 -m http.server 8080\`, затем \`http://localhost:8080\`.
-- Тесты: \`npm test\`.
-- Пакетный JSON-вывод: \`npm run analyze:demo\` или
-  \`node scripts/analyze.mjs --input documents --date 2026-03-10 --output out/report.json\`.
-- Публикация: GitHub Pages, Source = **GitHub Actions**. На каждом push в \`main\` workflow [Test and publish](.github/workflows/ci-pages.yml) сначала проверяет движок и UI в Chrome, затем публикует статический сайт.
+- Локальный UI: `python3 -m http.server 8080`, затем `http://localhost:8080`.
+- Тесты: `npm test`.
+- Пакетный JSON-вывод: `npm run analyze:demo` или
+  `node scripts/analyze.mjs --input documents --date 2026-03-10 --output out/report.json`.
+- Публикация: GitHub Pages, Source = **GitHub Actions**. На каждом push в `main` workflow [Test and publish](.github/workflows/ci-pages.yml) сначала проверяет движок и UI в Chrome, затем публикует статический сайт.
 - Отдельный workflow [Analyze synthetic contract batch](.github/workflows/batch-analyze.yml) запускается вручную и выдаёт JSON-артефакт для дальнейшего импорта. Он использует **только документы, закоммиченные в репозиторий**.
 
 Использование: «Добавить TXT» → выбрать несколько файлов → установить дату проверки → таблица. Ссылка «Проверить источник» раскрывает точную цитату, её файл и строку. Фильтр «До 01.04.2026» отвечает на четвёртый контрольный вопрос, а блок предложений показывает несогласованные изменения. «Экспорт JSON» сохраняет результаты локально.
@@ -32,16 +32,16 @@
 
 ## Логика решения
 
-\`\`\`text
+```text
 TXT → строки и абзацы → тип документа и номер договора
   → кандидаты суммы/срока с оригинальным span
   → привязка документов по номеру
   → проверка: подпись + дата подписания + дата вступления в силу
   → разрешение конфликтов и неопределённости
   → реестр + предложения + цитаты + JSON
-\`\`\`
+```
 
-Данные: \`Document\` (name, id, kind, signature, signedAt, effective, blocks); \`Field\` (value, evidence{file,line,endLine,quote}, changedBy, effective); \`Contract\` (id, supplier, amount, deadline, proposals, review, documents).
+Данные: `Document` (name, id, kind, signature, signedAt, effective, blocks); `Field` (value, evidence{file,line,endLine,quote}, changedBy, effective); `Contract` (id, supplier, amount, deadline, proposals, review, documents).
 
 Система **не предполагает, что упоминание суммы означает цену договора**: авансы, бюджеты и штрафы игнорируются; суммы из отсутствующих спецификаций не выдумываются. Для изменения нужны явный статус подписания сторонами, дата подписания не позднее даты проверки и дата вступления в силу не позднее даты проверки. Письма и неподписанные проекты отражаются отдельно. Противоречащие основания, дубликаты и неопределённость приводят к «Нет данных» / «На проверку», а не к случайному выбору.
 
