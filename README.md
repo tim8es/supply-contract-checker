@@ -2,7 +2,7 @@
 
 **Действующие условия договоров поставки с проверяемыми цитатами.** Учебный MVP для специалиста по закупкам: загрузить несколько TXT, получить реестр, открыть первоисточник для каждой суммы и даты, увидеть подписанные изменения отдельно от предложений.
 
-[Открыть приложение](https://tim8es.github.io/supply-contract-checker/) · [Код](https://github.com/tim8es/supply-contract-checker) · [Архитектура](ARCHITECTURE.md) · [Интеграции](docs/integration.md) · [QA](docs/qa.md)
+[Открыть приложение](https://tim8es.github.io/supply-contract-checker/) · [Код](https://github.com/tim8es/supply-contract-checker) · [Архитектура](ARCHITECTURE.md) · [Интеграции](docs/integration.md) · [QA](docs/qa.md) · [10-минутная демонстрация](docs/demo.md)
 
 > Для демонстрации откройте страницу с параметром `?demo=1` — учебные TXT загрузятся автоматически. В рабочем интерфейсе можно загрузить другой комплект файлов без API-ключей.
 
