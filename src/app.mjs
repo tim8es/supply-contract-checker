@@ -151,7 +151,9 @@ function inspect(row, field, value, evidence, description) {
       $('document-select').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     content.append(jump);
-    showDocument(evidence.file, evidence.line, evidence.endLine || evidence.line);
+    // The verified quote is already visible in the inspector. Opening a
+    // citation must not navigate or scroll the original document automatically.
+    // Explicit "Показать в исходном тексте" remains available on demand.
   } else {
     content.append(el('p', 'Подтверждённого основания для этого значения нет. Поле требует ручной проверки.', 'issue'));
     if (row?.review?.length) content.append(el('p', row.review.join(' · '), 'hint'));
@@ -195,6 +197,14 @@ function valueCell(row, field, formatter, label) {
       cell.append(button);
       if(status?.message) cell.append(el('span',status.message,
         'ai-cell-message'+(status.status==='error'?' error':'')));
+      if(status?.candidate?.evidence) {
+        const detected=el('button','↗ Открыть найденную ИИ цитату','evidence-link');
+        detected.type='button';
+        detected.addEventListener('click',()=>inspect(row,label,
+          formatter(status.candidate.value),status.candidate.evidence,
+          'ИИ нашёл фрагмент, но действующее условие юридически не подтверждено. Требуется проверка специалиста.'));
+        cell.append(detected);
+      }
     }
   }
   return cell;
@@ -301,10 +311,13 @@ function recalculate() {
   if (!inputs.length) return;
   try {
     analysis = analyze(inputs, $('asof').value,{extractors:[penaltyRateExtractor],aiCandidates});
+    // Every missing cell exposes the same explicit AI action. Eligibility
+    // for authoritative use is evaluated separately by the policy engine.
     aiEligible=new Set();
-    for(const entry of collectFallbackTargets(inputs,$('asof').value).targets)
-      for(const field of entry.missing)
-        if (entry.doc.id) aiEligible.add(fieldKey(entry.doc.id,field));
+    for(const row of analysis.rows)
+      for(const field of ['amount','deadline','penaltyRate'])
+        if(!(field==='penaltyRate'?row.extraFields?.penaltyRate:row[field]))
+          aiEligible.add(fieldKey(row.id,field));
     const select = $('document-select');
     const chosen = select.value;
     select.replaceChildren();
@@ -417,14 +430,20 @@ async function runFieldAI(contractId,field) {
       aiCandidates=merged;
       recalculate();
     }
-    const updated=analysis.rows.find(row=>row.id===contractId)?.[field];
+    const current=analysis.rows.find(row=>row.id===contractId);
+    const updated=field==='penaltyRate'?current?.extraFields?.penaltyRate:current?.[field];
     if(updated?.via==='ai') aiCellState.delete(key);
     else {
+      const detected=Object.values(result.candidates)
+        .map(fields=>fields?.[field]).find(Boolean)??null;
       const description=result.failedRequests?'Ошибка API или CORS. Проверьте параметры подключения.':
+        detected?'ИИ нашёл упоминание, но действующее условие не подтверждено (подпись, конфликт или изменение).':
         result.rejectedFields?'Ответ модели не прошёл проверку по документу.':
         result.emptyFields?'Модель не нашла подтверждаемого значения. Нужна ручная проверка.':
+        result.requestedFields===0?'Подходящего для передачи ИИ исходного документа нет; нужна ручная проверка.':
         'Невозможно установить действующее значение — проверьте документы.';
-      aiCellState.set(key,{status:result.failedRequests?'error':'empty',message:description});
+      aiCellState.set(key,{status:result.failedRequests?'error':'empty',
+        message:description,candidate:detected});
     }
   } catch(error) {
     if(run===aiRunVersion) {

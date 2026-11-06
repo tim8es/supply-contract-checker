@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze,parseDocument } from '../src/engine.mjs';
 import { collectFallbackTargets, candidateFromModel, fetchFallbackCandidates, validateEndpoint } from '../src/ai-fallback.mjs';
+import {penaltyRateExtractor} from '../src/extractors/penalty.mjs';
 
 const contract=(text='Стоимость продукции в рамках настоящего договора равна 640 000 рублей.\nВесь товар должен быть поставлен до 11 июня 2026 года.')=>({
  name:'unseen-contract.txt',text:[
@@ -54,14 +55,27 @@ test('target selection excludes unsigned proposals and future effective amendmen
  assert.deepEqual(data.targets.map(x=>x.doc.name),['unseen-contract.txt']);
  assert.deepEqual(data.targets[0].missing,['amount','deadline']);
 });
-test('target selection does not send unsigned base contract',()=>{
+test('unsigned base can be scanned as diagnostic evidence, not legal authority',()=>{
  const unsigned={...contract(),text:contract().text.replace('подписан обеими сторонами','не подписан сторонами')};
- assert.equal(collectFallbackTargets([unsigned],'2026-03-10').targets.length,0);
+ assert.equal(collectFallbackTargets([unsigned],'2026-03-10').targets.length,1);
+ const result=analyze([unsigned],'2026-03-10',{
+   aiCandidates:{[unsigned.name]:{amount:candidate(unsigned,'amount',block(unsigned,'Стоимость продукции'),'640 000')}}
+ });
+ assert.equal(result.rows[0].amount,null);
+ assert.ok(result.rows[0].review.some(x=>x.includes('Подписание')));
 });
-test('target selection does not send already-extracted or duplicate contract records',()=>{
+test('target selection does not resend parsed fields but permits duplicate diagnostics',()=>{
  const known=contract('Цена договора составляет 700 000 рублей.\nСрок поставки: 15.04.2026.');
  assert.equal(collectFallbackTargets([known],'2026-03-10').targets.length,0);
- assert.equal(collectFallbackTargets([contract(),{...contract(),name:'duplicate.txt'}],'2026-03-10').targets.length,0);
+ const duplicate={...contract(),name:'duplicate.txt'};
+ const targets=collectFallbackTargets([contract(),duplicate],'2026-03-10').targets;
+ assert.equal(targets.length,2);
+ const result=analyze([contract(),duplicate],'2026-03-10',{
+  aiCandidates:{[contract().name]:{amount:candidate(contract(),'amount',
+   block(contract(),'Стоимость продукции'),'640 000')}}
+ });
+ assert.equal(result.rows[0].amount,null);
+ assert.ok(result.rows[0].review.some(x=>x.includes('Дубликат')));
 });
 test('fake OpenAI-compatible response is verified and applied with review flag',async()=>{
  const doc=contract();
@@ -176,6 +190,27 @@ test('requested field and contract filter keep unrelated documents out of the AP
  assert.deepEqual(Object.keys(result.candidates),[first.name]);
  assert.ok(!result.candidates[first.name].deadline);
 });
+test('penalty rate is supported as an AI-only source-grounded plugin field',()=>{
+ const doc=contract('Размер пеней составляет 0,25% от суммы за каждый день просрочки.');
+ const target=collectFallbackTargets([doc],'2026-03-10',{field:'penaltyRate'});
+ assert.equal(target.targets.length,1);
+ assert.deepEqual(target.targets[0].missing,['penaltyRate']);
+ const found=candidate(doc,'penaltyRate',block(doc,'Размер пеней'),'0,25%');
+ assert.equal(found?.value,0.25);
+ const row=analyze([doc],'2026-03-10',{
+   extractors:[penaltyRateExtractor],aiCandidates:{[doc.name]:{penaltyRate:found}}
+ }).rows[0];
+ assert.equal(row.extraFields.penaltyRate.value,0.25);
+ assert.equal(row.extraFields.penaltyRate.via,'ai');
+ assert.equal(row.extraFields.penaltyRate.evidence.verified,true);
+ assert.ok(row.review.some(x=>x.includes('ИИ-кандидат')));
+});
+test('penalty cap or percentage without daily term is not accepted by AI',()=>{
+ const cap=contract('Предельный размер неустойки не более 10%.');
+ assert.equal(candidate(cap,'penaltyRate',block(cap,'Предельный'),'10%'),null);
+ const unrelated=contract('Ставка неустойки установлена 2% однократно.');
+ assert.equal(candidate(unrelated,'penaltyRate',block(unrelated,'Ставка'),'2%'),null);
+});
 test('invalid requested field is rejected before reaching the external API',()=>{
- assert.throws(()=>collectFallbackTargets([contract()],'2026-03-10',{field:'penaltyRate'}),/Неподдерживаемое поле/);
+ assert.throws(()=>collectFallbackTargets([contract()],'2026-03-10',{field:'unknown'}),/Неподдерживаемое поле/);
 });

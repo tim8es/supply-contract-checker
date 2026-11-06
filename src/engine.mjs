@@ -363,6 +363,15 @@ export function analyze(files, asOf = '2026-03-10', options = {}) {
       } catch (error) {
         doc.issues.push('Extractor '+ext.key+': '+error.message);
       }
+      if (!proposedOnly && !candidate && assisted?.[doc.name]?.[ext.key] &&
+          (doc.kind==='contract' || doc.kind==='amendment') && doc.signature==='signed') {
+        const checked=asEvidenceResult(doc,assisted[doc.name][ext.key],ext.parseToken);
+        if(checked.candidate) {
+          candidate={...checked.candidate,via:'ai'};
+          doc.issues.push('ИИ-кандидат для '+ext.key+
+            '; требуется проверка смысловой применимости: '+doc.name);
+        }
+      }
       if (proposedOnly) doc.extraProposed[ext.key]=candidate;
       else doc.extraFields[ext.key]=candidate;
       try { doc.termIntents[ext.key]=ext.changedIntent(doc) ?? null; }
@@ -410,7 +419,7 @@ export function analyze(files, asOf = '2026-03-10', options = {}) {
     for (const ext of extractors) {
       const candidate=base.extraFields[ext.key];
       row.history[ext.key]=candidate ? [{
-        value:candidate.value,evidence:candidate.evidence,
+        value:candidate.value,evidence:candidate.evidence,via:candidate.via??null,
         file:base.name,effective:null,outcome:'base'
       }] : [];
     }
