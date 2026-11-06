@@ -72,7 +72,12 @@ function best(candidates) {
 function priceCandidates(doc, proposed) {
   const found = [];
   for (const block of doc.blocks) {
-    const flat = normalize(block.text);
+    // Separate independent price clauses so a following advance, budget or
+    // penalty cannot suppress a preceding agreed contract price.
+    const clauses = normalize(block.text)
+      .split(/;\s*|(?<=[.!?])\s+(?=[А-ЯЁ])/u)
+      .map(x => x.trim()).filter(Boolean);
+    for (const flat of clauses) {
     const explicitProposal = /(?:предлагается|предлагаем|просим|проект)/iu.test(flat);
     if (proposed && !explicitProposal && !['draft','letter'].includes(doc.kind)) continue;
     if (!proposed && (['draft','letter'].includes(doc.kind) || /(?:предлагается|предлагаем|проект\s+изменения)/iu.test(flat))) continue;
@@ -102,6 +107,7 @@ function priceCandidates(doc, proposed) {
         if (value === null) continue;
         found.push({ ...result(doc, block, value, 'amount', num[0]), score: anchor.score });
       }
+    }
     }
   }
   return best(found);
