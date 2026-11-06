@@ -39,7 +39,7 @@ test('model response references must match original paragraph start, not arbitra
  const doc=contract();
  assert.equal(candidate(doc,'amount',999,'640 000'),null);
  assert.equal(candidate(doc,'amount',block(doc,'Стоимость продукции'),'990 000'),null);
- assert.equal(candidate(doc,'amount',block(doc,'Весь товар'),'640 000'),null);
+ assert.equal(candidate(doc,'amount',block(doc,'Поставщик'),'640 000'),null);
 });
 test('provider URL must be explicit HTTPS or local HTTP, without credentials or query secrets',()=>{
  assert.equal(validateEndpoint('https://example.org/v1/chat/completions'),'https://example.org/v1/chat/completions');
