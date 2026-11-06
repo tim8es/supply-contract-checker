@@ -184,9 +184,7 @@ async function main() {
       'desktop single-scroll rail moves BOTH full-height evidence cards together: '+JSON.stringify(railAudit));
     await call('Emulation.setDeviceMetricsOverride',
       {width:430,height:900,deviceScaleFactor:1,mobile:true});
-    const mobileAudit=await evaluate("(async()=>{\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const side=document.querySelector('.workspace-aside');\n  const inspector=side.querySelector('.inspector');\n  const style=getComputedStyle(side);\n  const iStyle=getComputedStyle(inspector);\n  const box=side.getBoundingClientRect();\n  const ok=innerWidth<=1100 && style.position==='static' && style.maxHeight==='none' &&\n    iStyle.position==='static' && iStyle.overflowY==='visible' &&
-    getComputedStyle(side.querySelector('.source-view')).overflowY==='visible' &&
-    style.overflowY==='visible' && box.width>0 &&\n    box.left>=-1 && box.right<=innerWidth+1;\n  return {ok,width:innerWidth,position:style.position,height:style.height,overflow:style.overflowY,rect:box.toJSON()};\n})()");
+    const mobileAudit=await evaluate("(async()=>{\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const side=document.querySelector('.workspace-aside');\n  const inspector=side.querySelector('.inspector');\n  const style=getComputedStyle(side);\n  const iStyle=getComputedStyle(inspector);\n  const sourceStyle=getComputedStyle(side.querySelector('.source-view'));\n  const box=side.getBoundingClientRect();\n  const ok=innerWidth<=1100 && style.position==='static' &&\n    style.maxHeight==='none' && iStyle.position==='static' &&\n    iStyle.overflowY==='visible' && sourceStyle.overflowY==='visible' &&\n    style.overflowY==='visible' && box.width>0 &&\n    box.left>=-1 && box.right<=innerWidth+1;\n  return {ok,width:innerWidth,position:style.position,height:style.height,\n    overflow:style.overflowY,rect:box.toJSON()};\n})()");
     assert(mobileAudit.ok,'mobile inspector returns to natural page flow: '+JSON.stringify(mobileAudit));
     console.log('Browser E2E OK: historical as-of date, single-scroll full-height evidence rail, mobile flow and BYOK AI.');
 
