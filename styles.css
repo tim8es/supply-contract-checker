@@ -175,3 +175,13 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
  .inline-ai-settings{padding:15px}
  .registry-tools{width:100%;justify-content:space-between}
 }
+
+/* Both example actions belong to the uploader, not to registry search. */
+.upload-panel{flex-wrap:wrap}
+.upload-copy{flex:1 1 300px;min-width:0}
+.upload-actions{flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.upload-actions .button{white-space:nowrap}
+@media(max-width:620px){
+  .upload-actions{justify-content:stretch;margin-left:0}
+  .upload-actions .button{flex:1 1 135px;text-align:center}
+}
