@@ -104,6 +104,30 @@ Do not multiply browser upload caps or run a GitHub job per user request. Evolve
 
 The penalty-rate extension is implemented in `src/extractors/penalty.mjs`. Call `analyze(files, date, {extractors:[penaltyRateExtractor]})` to enable it. The plugin provides `key`, `label`, `parseToken`, `extract` and `changedIntent`; the engine handles exact evidence, signatures, effective dates, proposals and value history. Result: `row.extraFields.penaltyRate.value` in **percent per day** (0.1 means 0.1%, not 10%). A separate daily rate is distinguished from a maximum penalty cap. See `tests/extractors.test.mjs` and `docs/integration.md`.
 
+## Opt-in model fallback (BYOK, browser only)
+
+The deterministic pipeline remains the default. The separate
+`src/ai-fallback.mjs` performs **no network calls without an explicit click**.
+Users supply their own OpenAI-compatible endpoint and API key; neither is
+persisted, exported nor committed.
+
+The fallback builds a bounded allowlist: missing prices/deadlines only from
+signed base documents or signed, effective, linked amendments. It excludes
+drafts, letters, unsigned/future or conflicting material, duplicate contract
+IDs and fully parsed fields. Up to 12 documents (14k chars each) are sent.
+The model returns a source block number and literal value token; the browser
+reconstructs the original quote, validates it and delegates signing, date
+and amendment precedence to the existing deterministic rules. Each accepted
+candidate is marked `via:'ai'` and shown as **requires manual review**.
+
+Source provenance is not equivalent to legal correctness. A model can still
+choose the wrong number in a valid original paragraph. No real model
+benchmark has been run in this branch; tests use a mock provider.
+
+A browser endpoint must support CORS. For confidential documents or a
+provider without CORS, a separate authenticated, rate-limited proxy would
+be necessary. The public GitHub Pages demo does not hold any shared secret.
+
 ## Quality gate
 
 `npm test` tests the six accepted fixtures, new contracts, variations, missing values, contradictory documents, signed-at chronology, party matching, original citations and CLI. The CI workflow starts a static server and uses headless Chrome with `?demo=1` to verify that the complete DOM renders the expected document rows. A screenshot artifact is attached to PR builds for visual review. These checks establish regression coverage, **not** validity on all legal documents.

@@ -48,6 +48,30 @@
       </section>
       <p id="message" role="status" class="feedback" aria-live="polite">Загрузите файлы или откройте учебный набор из шести документов.</p>
 
+      <details class="ai-panel" id="ai-panel">
+        <summary>Дополнительный AI-анализ <span class="ai-tag">Необязательно · Ваш API-ключ</span></summary>
+        <div class="ai-panel-body">
+          <p class="ai-warning">Только по вашему нажатию выбранные TXT-фрагменты будут отправлены внешнему API. Не используйте конфиденциальные договоры без согласования. Ключ хранится только в памяти открытой вкладки, не экспортируется и не записывается в хранилище.</p>
+          <div class="ai-controls">
+            <label>OpenAI-совместимый endpoint
+              <input id="ai-endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1/chat/completions">
+            </label>
+            <label>Модель
+              <input id="ai-model" type="text" spellcheck="false" autocomplete="off" placeholder="Название модели у провайдера">
+            </label>
+            <label>API-ключ
+              <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вводится только на эту сессию">
+            </label>
+          </div>
+          <div class="ai-actions">
+            <button class="button primary" id="ai-run" type="button" disabled>Уточнить пропущенные поля через AI</button>
+            <button class="button secondary" id="ai-reset" type="button">Удалить AI-результаты и ключ</button>
+            <span id="ai-status" role="status" aria-live="polite">По умолчанию анализ полностью локальный.</span>
+          </div>
+          <p class="ai-note">Поддерживается OpenAI-совместимый chat/completions API с CORS. Модель возвращает гипотезы, не подтверждает подписи и не меняет юридические правила. Каждый AI-результат отмечен для ручной проверки. GitHub Pages не хранит ключи.</p>
+        </div>
+      </details>
+
       <section class="metrics" aria-label="Сводка">
         <article class="metric"><div class="metric-label">Договоров <span class="metric-icon">▦</span></div><strong id="metric-count">—</strong><small>найдено в документах</small></article>
         <article class="metric"><div class="metric-label">Проверяемых условий <span class="metric-icon">◈</span></div><strong id="metric-confirmed">—</strong><small>суммы и сроки с цитатой</small></article>
@@ -73,7 +97,7 @@
             <div class="table-scroll">
               <table>
                 <thead><tr><th>ДОГОВОР / ПОСТАВЩИК</th><th>СУММА</th><th>ПОСТАВКА ДО</th><th>НЕУСТОЙКА / ДЕНЬ</th><th>СТАТУС</th></tr></thead>
-                <tbody id="rows"><tr><td colspan="4" class="empty-cell">После загрузки появятся договоры и их условия.</td></tr></tbody>
+                <tbody id="rows"><tr><td colspan="5" class="empty-cell">После загрузки появятся договоры и их условия.</td></tr></tbody>
               </table>
             </div>
             <div class="card-foot" id="table-count">Нет загруженных документов</div>

@@ -263,7 +263,7 @@ export function parseDocument({ name, text }) {
 
 function fieldValue(field) {
   return field ? { value: field.value, evidence: field.evidence, changedBy: field.changedBy ?? null,
-    effective: field.effective ?? null } : null;
+    effective: field.effective ?? null, via: field.via ?? null } : null;
 }
 function documentField(doc, key) {
   return key === 'amount' || key === 'deadline' ? doc[key] : doc.extraFields?.[key] ?? null;
@@ -308,7 +308,7 @@ function apply(row, doc, fields=['amount','deadline']) {
     }
     row.conflictFields.delete(field);
     row.history[field].push({
-      value: next.value, evidence: next.evidence,
+      value: next.value, evidence: next.evidence,via:next.via ?? null,
       file: doc.name, effective, outcome: 'applied'
     });
     setRowField(row,field,{ ...fieldValue(next), changedBy: doc.name, effective });
@@ -328,6 +328,25 @@ export function analyze(files, asOf = '2026-03-10', options = {}) {
   }
   const fields=[...keys];
   const docs = files.map(parseDocument);
+  // Model proposals cannot determine signing, document type, effective date
+  // or which amendment prevails. Those are deterministic policy decisions.
+  const assisted = options?.aiCandidates ?? null;
+  for (const doc of docs) {
+    if (assisted && (doc.kind==='contract' || doc.kind==='amendment') &&
+        doc.signature==='signed') {
+      for (const key of ['amount','deadline']) {
+        if (doc[key] || !assisted[doc.name]?.[key] ||
+            doc.issues.some(issue => key==='amount'
+              ? issue==='Неоднозначная сумма' : issue==='Неоднозначный срок поставки')) continue;
+        const raw=assisted[doc.name][key];
+        const validation=asEvidenceResult(doc,raw,key==='amount'?parseMoney:toIso);
+        if (validation.candidate) {
+          doc[key]={...validation.candidate,via:'ai'};
+          doc.issues.push('ИИ-кандидат для '+key+'; требуется проверка смысловой применимости: '+doc.name);
+        }
+      }
+    }
+  }
   for (const doc of docs) {
     doc.extraFields={};
     doc.extraProposed={};
@@ -379,11 +398,11 @@ export function analyze(files, asOf = '2026-03-10', options = {}) {
       extraFields: Object.fromEntries(extractors.map(x=>[x.key,fieldValue(base.extraFields[x.key])])),
       history: {
         amount: base.amount ? [{
-          value: base.amount.value, evidence: base.amount.evidence,
+          value: base.amount.value, evidence: base.amount.evidence,via:base.amount.via ?? null,
           file: base.name, effective: null, outcome: 'base'
         }] : [],
         deadline: base.deadline ? [{
-          value: base.deadline.value, evidence: base.deadline.evidence,
+          value: base.deadline.value, evidence: base.deadline.evidence,via:base.deadline.via ?? null,
           file: base.name, effective: null, outcome: 'base'
         }] : []
       },

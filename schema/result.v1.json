@@ -104,6 +104,17 @@
             "string",
             "null"
           ]
+        },
+        "via": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ai",
+            null
+          ],
+          "description": "ai = model-assisted candidate requiring semantic human review; null = deterministic extraction."
         }
       }
     },
@@ -286,6 +297,16 @@
             "applied",
             "unresolved",
             "conflict"
+          ]
+        },
+        "via": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ai",
+            null
           ]
         }
       }
