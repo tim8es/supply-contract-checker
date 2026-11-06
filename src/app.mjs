@@ -383,20 +383,34 @@ $('ai-example').addEventListener('click', async () => {
   const button=$('ai-example');
   button.disabled=true;
   try {
-    const response=await fetch('./examples/ai_fallback_example.txt');
-    if (!response.ok) throw Error('HTTP '+response.status);
-    const text=await response.text();
+    // Separate, realistic synthetic fixture set. These filenames select
+    // teaching materials; no extracted prices/dates are hardcoded in the app.
+    const names=[
+      'ai_fallback_example.txt',
+      'ai_medical_equipment_205.txt',
+      'ai_medical_amendment_signed_205.txt',
+      'ai_office_furnishings_206.txt',
+      'ai_office_supplier_letter_206.txt',
+      'ai_lab_supplies_207.txt'
+    ];
+    const docs=await Promise.all(names.map(async name=>{
+      const response=await fetch('./examples/'+name);
+      if(!response.ok) throw Error(name+': HTTP '+response.status);
+      return {name,text:await response.text()};
+    }));
+    // Do not replace existing documents on a partial network failure.
     invalidateAI();
-    inputs=[{name:'ai_fallback_example.txt',text}];
+    inputs=docs;
     filter='all'; search=''; $('search').value='';
     document.querySelectorAll('[data-filter]').forEach(btn=>
       btn.classList.toggle('active',btn.dataset.filter==='all'));
     recalculate();
-    document.querySelector('[data-ai-field]')?.focus();
-    message('Загружен отдельный синтетический договор для сравнения AI с локальными правилами. '+
-      'Сумма и срок должны оставаться «Нет данных» до проверки моделью.');
+    message('Загружены '+analysis.rows.length+' реалистичных учебных договора и '+
+      (analysis.documents.length-analysis.rows.length)+
+      ' связанных документа. Найденные и пропущенные условия можно проверить в таблице. '+
+      'Все организации и данные вымышлены; запросы к ИИ выполняются только по нажатию.');
   } catch(error) {
-    message('Не удалось открыть AI-пример: '+error.message,true);
+    message('Не удалось открыть учебный набор ИИ: '+error.message,true);
   } finally {button.disabled=false;}
 });
 async function runFieldAI(contractId,field) {
