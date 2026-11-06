@@ -7,7 +7,7 @@ npm test
 node scripts/analyze.mjs --input documents --date 2026-03-10
 ```
 
-Current suite consists of **147 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
+Current suite consists of **153 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
 - basic acceptance (six supplied documents, expected amounts and deadlines);
 - exact provenance and non-invention of missing values;
 - new contract with different filename/number/amount/date;
@@ -26,7 +26,7 @@ Current suite consists of **147 Node test cases**, including an independently sp
 - adversarial payment/signing/acceptance dates preceding delivery in the same paragraph, and a legitimate contract price adjacent to an advance or penalty cap.
 - optional BYOK AI fallback: fake provider JSON, source-block reconstruction, CORS/auth errors, key not exported, unsigned/future documents excluded, manual-review badges and original source linking.
 
-GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: loads `/?demo=1`, verifies three rendered contracts, clicks the «До 01.04.2026» filter, opens the STN-101 amount with highlighted original citation, additionally opens the penalty rate and its original source, then uploads a new TXT via the File API and checks its extracted amount/date. A separate DOM smoke test and desktop/mobile screenshots accompany PR CI.
+GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: loads `/?demo=1`, verifies three rendered contracts, clicks the «До 01.04.2026» filter, opens the STN-101 amount with highlighted original citation, additionally opens the penalty rate and its original source, then uploads a new TXT via the File API and checks its extracted amount/date. A separate DOM smoke test and desktop/mobile screenshots accompany PR CI. Additional fixture checks assert long clauses, base prices, amended values, proposals, AI-grounded missing fields and an absent annex.
 
 **Limits:** these checks do not exercise every date picker state, export download or every interaction; manual validation remains necessary.
 
@@ -50,7 +50,7 @@ GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: l
 
 14. In «Действующие условия», all missing amount/deadline/penalty-rate cells expose «Проверить через ИИ». A click without a configured model opens inline settings; endpoint/model persist locally, while API key persists only with explicit checkbox consent and is removed when revoked. Model requests send only the chosen contract/field, and accepted values show «ИИ · проверить» and an original source quote. Browser E2E uses a **mock API**; live provider CORS/JSON compatibility is not claimed.
 
-15. Open `?ai-demo=1`: a separate synthetic contract NLP-204 must show **two «Нет данных»** before AI. Click **each missing field's AI button separately**; a mocked OpenAI-compatible response returns only that field. Both values appear in the original registry with linked citations, without a comparison panel. The original `?demo=1` and batch `documents` folder remain three contracts. Live external model quality and CORS are **not covered**.
+15. The **«Пример для ИИ»** button is adjacent to **«Открыть пример»** in the upload panel, not in the registry toolbar. Open `?ai-demo=1` or click it: expect **4 realistic signed contracts, one effective signed addendum and one supplier letter** (6 TXT). NLP-204 starts with two «Нет данных»; clicking each AI field and using a mocked API must recover both with exact citations. NLP-205 uses a signed price amendment but leaves delivery for AI investigation. NLP-206 has a non-binding proposed delay in a letter; NLP-207 has a truly absent contract price. The original `?demo=1` and batch `documents` folder remain exactly 3 contracts / 6 original TXT. Live external model quality and CORS are **not covered**.
 
 ## Known limitations and future QA
 
