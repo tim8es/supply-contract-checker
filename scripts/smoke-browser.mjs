@@ -106,6 +106,20 @@ async function main() {
       if (data.exceptionDetails) throw Error('Browser evaluation failed: ' + data.exceptionDetails.text);
       return data.result.value;
     }
+    // CDP can attach during initial about:blank -> app navigation. Retry only
+    // readiness, never a failed product check or browser assertion.
+    let appReady=false;
+    for(let attempt=0;attempt<40;attempt++) {
+      try {
+        appReady=await evaluate("document.readyState === 'complete' && !!document.querySelector('#rows')");
+        if(appReady) break;
+      } catch(error) {
+        if(!/Execution context was destroyed|Cannot find context with specified id/u.test(error.message))
+          throw error;
+      }
+      await delay(150);
+    }
+    assert(appReady,'app loaded before E2E assertions');
     await evaluate("new Promise((resolve,reject)=>{let n=0;const id=setInterval(()=>{if(document.querySelector('#rows')?.textContent.includes('STN-103')){clearInterval(id);resolve(true)}else if(++n>100){clearInterval(id);reject(Error('demo data not loaded'))}},100)})");
     let rows = await evaluate("document.querySelector('#rows').innerText");
     assert(rows.includes('STN-101') && rows.includes('STN-102') && rows.includes('STN-103'), 'demo table');
