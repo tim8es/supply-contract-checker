@@ -146,3 +146,19 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
 .term-event-meta{font-size:10px;color:#8597af;margin-top:4px;overflow-wrap:anywhere}
 .term-event .inspect-action{font-size:10px;margin-top:6px}
 .term-event-note{color:#ab791d;font-size:10px;display:block;margin-top:5px}
+
+/* Explicit, optional bring-your-own-key AI controls. Nothing hidden behind upload. */
+.ai-panel{border:1px solid #cddcf4;background:#fff;border-radius:12px;margin:0 0 20px;box-shadow:0 3px 10px #172b4a06}
+.ai-panel summary{padding:16px 19px;color:#244774;font-size:13px;font-weight:780;cursor:pointer;list-style:disclosure-closed}
+.ai-panel[open] summary{border-bottom:1px solid var(--stroke)}
+.ai-tag{margin-left:10px;background:#edf3ff;border:1px solid #dce7ff;color:#4364a4;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700}
+.ai-panel-body{padding:17px 19px 18px}
+.ai-warning{font-size:12px;line-height:1.55;color:#855316;background:#fff8eb;border:1px solid #f8e4c0;padding:12px;border-radius:8px;margin:0 0 14px}
+.ai-controls{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:12px}
+.ai-controls label{font-size:11px;font-weight:750;color:#4d6486}
+.ai-controls input{margin-top:6px;width:100%;min-width:0;border:1px solid #ccd8e7;border-radius:8px;padding:10px;color:#18263b;background:#fff;font-size:12px}
+.ai-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 0}
+.ai-actions #ai-status{font-size:11px;color:#627a99}
+.ai-note{font-size:11px;line-height:1.55;color:#71819a;margin:12px 0 0}
+.ai-origin{font-size:10px;display:inline-flex;padding:3px 6px;margin-top:5px;border-radius:5px;font-weight:750;background:#fff1d3;color:#965e0e}
+@media(max-width:850px){.ai-controls{grid-template-columns:1fr}.ai-tag{display:inline-block;margin:6px 0 0}}
