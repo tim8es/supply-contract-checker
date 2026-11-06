@@ -44,6 +44,8 @@
           <label class="button primary" for="files">+ Добавить TXT</label>
           <input type="file" id="files" multiple accept=".txt,text/plain" class="sr-only" aria-label="Загрузить TXT-файлы">
           <button id="demo" class="button secondary" type="button">Открыть пример</button>
+          <button id="ai-example" class="button secondary" type="button"
+            title="Открыть отдельный набор реалистичных учебных договоров для проверки ИИ">Пример для ИИ</button>
         </div>
       </section>
       <p id="message" role="status" class="feedback" aria-live="polite">Загрузите файлы или откройте учебный набор из шести документов.</p>
@@ -95,7 +97,6 @@
                 <button type="button" data-filter="review">На проверку</button>
               </div>
               <div class="registry-tools">
-                <button class="button ghost" id="ai-example" type="button" title="Загрузить договор с двумя условиями, которые не распознаёт локальный парсер">Пример для ИИ</button>
                 <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
               </div>
             </div>
