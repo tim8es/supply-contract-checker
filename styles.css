@@ -185,3 +185,59 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
   .upload-actions{justify-content:stretch;margin-left:0}
   .upload-actions .button{flex:1 1 135px;text-align:center}
 }
+
+/* Desktop: evidence is a separate scrollable work area. The whole right
+   column stays in view while the document list / registry scrolls on the
+   page. Inside it, the source inspector stays pinned above the TXT view. */
+@media (min-width:1101px) {
+  .workspace-aside {
+    position:sticky;
+    top:12px;
+    align-self:start;
+    height:calc(100vh - 24px);
+    height:calc(100dvh - 24px);
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    scroll-padding-top:8px;
+    padding-right:5px;
+    scrollbar-width:thin;
+    scrollbar-color:#c4d2e6 transparent;
+  }
+  .workspace-aside .inspector {
+    position:sticky;
+    top:0;
+    z-index:2;
+    flex-shrink:0;
+    max-height:clamp(215px,45dvh,460px);
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    scrollbar-width:thin;
+    scrollbar-color:#c4d2e6 transparent;
+  }
+  .workspace-aside .document-card { flex-shrink:0; }
+  .workspace-aside .source-view {
+    height:clamp(320px,58dvh,560px);
+    max-height:none;
+  }
+  .workspace-aside:focus-visible,
+  .workspace-aside .inspector:focus-visible {
+    outline:2px solid #86a7ff;
+    outline-offset:-2px;
+  }
+}
+/* Narrow screens keep the inspector and source in normal document flow:
+   no fixed-height right rail and no inaccessible nested side scroll. */
+@media (max-width:1100px) {
+  .workspace-aside {
+    position:static;
+    height:auto;
+    max-height:none;
+    overflow:visible;
+  }
+  .workspace-aside .inspector {
+    position:static;
+    max-height:none;
+    overflow:visible;
+  }
+}

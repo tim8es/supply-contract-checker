@@ -26,6 +26,15 @@ Current suite consists of **153 Node test cases**, including an independently sp
 - adversarial payment/signing/acceptance dates preceding delivery in the same paragraph, and a legitimate contract price adjacent to an advance or penalty cap.
 - optional BYOK AI fallback: fake provider JSON, source-block reconstruction, CORS/auth errors, key not exported, unsigned/future documents excluded, manual-review badges and original source linking.
 
+Chrome E2E also changes «На дату проверки» from 10.03.2026 to
+28.02.2026 (original STN-101 terms), to 01.01.2026 (not yet signed)
+and back to 10.03.2026 (signed effective addendum applies again).
+At desktop 1440×900, it checks a sticky, viewport-height right evidence
+rail, independent scrolling, and a pinned inspector even while the page
+moves; at mobile 430×900 it checks ordinary document flow without a
+sticky nested rail. The source view remains an independently scrollable
+TXT region. Tests operate on the actual CSS through headless Chrome.
+
 GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: loads `/?demo=1`, verifies three rendered contracts, clicks the «До 01.04.2026» filter, opens the STN-101 amount with highlighted original citation, additionally opens the penalty rate and its original source, then uploads a new TXT via the File API and checks its extracted amount/date. A separate DOM smoke test and desktop/mobile screenshots accompany PR CI. Additional fixture checks assert long clauses, base prices, amended values, proposals, AI-grounded missing fields and an absent annex.
 
 **Limits:** these checks do not exercise every date picker state, export download or every interaction; manual validation remains necessary.
