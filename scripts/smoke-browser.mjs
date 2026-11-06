@@ -117,18 +117,26 @@ async function main() {
     assert(filteredProposals.includes('STN-102') && !filteredProposals.includes('STN-101'), 'proposal filter relevance');
 
     await evaluate("document.querySelector('[data-filter=all]').click()");
+    const missingActions=await evaluate("({amount:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"amount\"]'),penalty:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"penaltyRate\"]')})");
+    assert(missingActions.amount && missingActions.penalty,
+      'every missing registry cell has an AI button, including no-price and penalty');
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(2) button').click()");
     const proof = await evaluate("({file:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText,highlights:document.querySelectorAll('.source-line.highlight').length})");
-    assert(proof.file === '02_amendment_signed.txt', 'amended source file');
-    assert(proof.quote.includes('1 380 000'), 'source quote');
-    assert(proof.highlights >= 1, 'selected original paragraph');
+    assert(proof.file === '01_contract.txt', 'source panel stays on previous document');
+    assert(proof.quote.includes('1 380 000'), 'cited clause visible in inspector without source jump');
+    assert(proof.highlights === 0, 'opening inspector must not scroll/highlight original TXT');
+    await evaluate("document.querySelector('#inspect-content .inspect-action').click()");
+    const explicitSource=await evaluate("({file:document.querySelector('#document-select').value,highlights:document.querySelectorAll('.source-line.highlight').length})");
+    assert(explicitSource.file === '02_amendment_signed.txt' && explicitSource.highlights>=1,
+      'only explicit source navigation opens original TXT');
+    await evaluate("document.querySelector('#document-select').value='01_contract.txt';document.querySelector('#document-select').dispatchEvent(new Event('change',{bubbles:true}))");
     const timeline = await evaluate("document.querySelector('.term-history')?.innerText || ''");
     const normalizedTimeline = timeline.replace(/\s/gu, ' ');
     assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(4) button').click()");
     const penaltyProof=await evaluate("({value:document.querySelector('#inspect-content .fact-value')?.innerText,source:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText})");
-    assert(penaltyProof.source === '01_contract.txt', 'optional penalty evidence points at base contract');
+    assert(penaltyProof.source === '01_contract.txt', 'inspector does not automatically change original TXT');
     assert(penaltyProof.value?.includes('0,1%') && penaltyProof.quote?.includes('0,1%'), 'optional term visible with daily rate');
 
 
