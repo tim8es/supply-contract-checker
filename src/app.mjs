@@ -385,11 +385,11 @@ $('ai-example').addEventListener('click', async () => {
   const button=$('ai-example');
   button.disabled=true;
   try {
-    const response=await fetch('./documents/07_ai_fallback_example.txt');
+    const response=await fetch('./examples/ai_fallback_example.txt');
     if (!response.ok) throw Error('HTTP '+response.status);
     const text=await response.text();
     invalidateAI();
-    inputs=[{name:'07_ai_fallback_example.txt',text}];
+    inputs=[{name:'ai_fallback_example.txt',text}];
     filter='all'; search=''; $('search').value='';
     document.querySelectorAll('[data-filter]').forEach(btn=>
       btn.classList.toggle('active',btn.dataset.filter==='all'));
