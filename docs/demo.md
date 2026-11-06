@@ -20,6 +20,32 @@ Run the commands: npm test, npm run benchmark, and node scripts/analyze.mjs --in
 | 8–9 | Run npm run benchmark, inspect all misses. | 100% precision / 84.21% recall on synthetic holdout, nine misses; not production accuracy. |
 | 9–10 | Explain architecture and limits. | Separate candidate extraction, source verification and temporal policy. |
 
+## Optional AI demonstration (after the core walkthrough)
+
+Open `?ai-demo=1` or use **«Пример для ИИ»** next to
+**«Открыть пример»** in the top upload area. This loads **four
+realistically formatted synthetic contracts and two related files**
+(industrial equipment, medical devices, office furniture, laboratory
+consumables; signed addendum and supplier delay letter). All companies
+and legal obligations are fictional.
+
+Check the registry without an LLM first: NLP-204 has explicitly written
+but locally unrecognized price and deadline; NLP-205 has a signed
+amendment changing its price, but its original delivery date requires AI;
+NLP-206 has a recognized original deadline and an unapproved letter
+proposing a later one; NLP-207 intentionally lacks a signed total price.
+
+With a user-provided OpenAI-compatible endpoint and CORS support, click
+**«✦ Проверить через ИИ»** next to one missing field. A successful model
+response appears in the same cell with an exact source citation and
+**«ИИ · проверить»**; if it finds only a budget, it must abstain.
+Show **«⚙ Настройки ИИ»** to explain saved endpoint/model and explicit
+opt-in for plaintext browser API-key storage. Tests use a mock model; do
+not claim measured quality of a real provider.
+
+This optional exercise must not replace the original three-contract
+acceptance demonstration.
+
 ## Live extension challenge (next 30 minutes)
 
 Penalty-rate is already implemented as a plugin. For a genuine live change, choose a DIFFERENT field, such as warranty period, and:
