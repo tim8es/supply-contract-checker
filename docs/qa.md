@@ -7,7 +7,7 @@ npm test
 node scripts/analyze.mjs --input documents --date 2026-03-10
 ```
 
-Current suite consists of **139 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
+Current suite consists of **145 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
 - basic acceptance (six supplied documents, expected amounts and deadlines);
 - exact provenance and non-invention of missing values;
 - new contract with different filename/number/amount/date;
@@ -48,9 +48,9 @@ GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: l
 
 13. In one paragraph put `Оплата до 10.04.2026. Поставка до 03.04.2026`: the active delivery date must be **03.04.2026**, not the earlier payment date. Separately check that `Цена договора 900 000 рублей. Аванс 270 000 рублей.` reports **900 000 рублей**.
 
-14. Expand AI panel, provide an OpenAI-compatible endpoint, model and user key; click explicitly to share eligible source blocks. AI candidates must be marked 'ИИ · проверить' and link to the exact paragraph. Reset must remove candidates and key. Browser E2E uses a **mock API** to test this without paid credentials; live provider CORS/JSON compatibility is not claimed.
+14. In «Действующие условия», only eligible missing amount/deadline cells expose «Проверить через ИИ». A click without a configured model opens inline settings; endpoint/model persist locally, while API key persists only with explicit checkbox consent and is removed when revoked. Model requests send only the chosen contract/field, and accepted values show «ИИ · проверить» and an original source quote. Browser E2E uses a **mock API**; live provider CORS/JSON compatibility is not claimed.
 
-15. Open `?ai-demo=1`: a separate synthetic contract NLP-204 must show **two «Нет данных»** before AI. Use a browser test's mocked OpenAI-compatible response to verify two source-linked values and a **«До AI → После AI»** comparison. The original `?demo=1` and batch `documents` folder remain three contracts. A live external model and its CORS setup are **not covered** by these tests.
+15. Open `?ai-demo=1`: a separate synthetic contract NLP-204 must show **two «Нет данных»** before AI. Click **each missing field's AI button separately**; a mocked OpenAI-compatible response returns only that field. Both values appear in the original registry with linked citations, without a comparison panel. The original `?demo=1` and batch `documents` folder remain three contracts. Live external model quality and CORS are **not covered**.
 
 ## Known limitations and future QA
 
