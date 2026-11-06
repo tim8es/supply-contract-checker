@@ -110,7 +110,8 @@ export async function fetchFallbackCandidates(files,asOf,{endpoint,model,apiKey,
   if(typeof apiKey!=='string' || !apiKey.trim()) throw Error('Введите API-ключ.');
   const {targets,omitted}=collectFallbackTargets(files,asOf);
   const candidates=Object.create(null), failures=[];
-  let accepted=0;
+  let accepted=0, emptyFields=0, rejectedFields=0, failedRequests=0;
+  const requestedFields=targets.reduce((sum,x)=>sum+x.missing.length,0);
   for(let i=0;i<targets.length;i++) {
     if(signal?.aborted) throw Error('AI-анализ отменён.');
     const {doc,missing}=targets[i];
@@ -137,10 +138,14 @@ export async function fetchFallbackCandidates(files,asOf,{endpoint,model,apiKey,
           candidates[doc.name]??=Object.create(null);
           candidates[doc.name][field]=found;
           accepted++;
-        } else if(data[field]!=null) failures.push(doc.name+': не подтверждён '+field);
+        } else if(data[field]!=null) {
+          rejectedFields++;
+          failures.push(doc.name+': не подтверждён '+field);
+        } else emptyFields++;
       }
     } catch(error) {
       if(signal?.aborted) throw Error('AI-анализ отменён.');
+      failedRequests++;
       // Never surface server response bodies, keys or user text in diagnostics.
       failures.push(doc.name+': '+(error.message?.startsWith('HTTP ')?error.message:
         /JSON|структура|невалид/u.test(error.message||'')?'неподдерживаемый JSON модели':
@@ -148,5 +153,6 @@ export async function fetchFallbackCandidates(files,asOf,{endpoint,model,apiKey,
     }
   }
   onProgress?.({completed:targets.length,total:targets.length,filename:null});
-  return {candidates,requested:targets.length,accepted,omitted,failures};
+  return {candidates,requested:targets.length,requestedFields,accepted,
+    emptyFields,rejectedFields,failedRequests,omitted,failures};
 }
