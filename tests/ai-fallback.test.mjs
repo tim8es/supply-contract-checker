@@ -146,3 +146,36 @@ test('missing required endpoint/model/key rejected before network',async()=>{
  await assert.rejects(()=>fetchFallbackCandidates([contract()],'2026-03-10',{...props,model:''}),/модель/);
  await assert.rejects(()=>fetchFallbackCandidates([contract()],'2026-03-10',{...props,apiKey:''}),/API-ключ/);
 });
+
+test('requested field and contract filter keep unrelated documents out of the API payload',async()=>{
+ const first=contract();
+ const second={...contract(),name:'other.txt',
+   text:contract().text.replaceAll('BYK-543','BYK-544')};
+ const target=collectFallbackTargets([first,second],'2026-03-10',{contractId:'BYK-543',field:'amount'});
+ assert.equal(target.targets.length,1);
+ assert.deepEqual(target.targets[0].missing,['amount']);
+ let requests=0;
+ const result=await fetchFallbackCandidates([first,second],'2026-03-10',{
+   contractId:'BYK-543',field:'amount',
+   endpoint:'https://example.test/v1/chat/completions',model:'test',apiKey:'key',
+   fetchImpl:async(_,options)=>{
+     requests++;
+     const payload=JSON.parse(options.body);
+     const sent=JSON.parse(payload.messages[1].content);
+     assert.equal(sent.file,first.name);
+     assert.deepEqual(sent.requestedFields,['amount']);
+     assert.ok(!options.body.includes(second.name));
+     return response({
+       amount:{blockLine:block(first,'Стоимость продукции'),valueText:'640 000'},
+       deadline:null
+     });
+   }
+ });
+ assert.equal(requests,1);
+ assert.equal(result.accepted,1);
+ assert.deepEqual(Object.keys(result.candidates),[first.name]);
+ assert.ok(!result.candidates[first.name].deadline);
+});
+test('invalid requested field is rejected before reaching the external API',()=>{
+ assert.throws(()=>collectFallbackTargets([contract()],'2026-03-10',{field:'penaltyRate'}),/Неподдерживаемое поле/);
+});
