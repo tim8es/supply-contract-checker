@@ -4,8 +4,8 @@ import {readFileSync} from 'node:fs';
 import {analyze} from '../src/engine.mjs';
 import {collectFallbackTargets,candidateFromModel,fetchFallbackCandidates} from '../src/ai-fallback.mjs';
 
-const file={name:'07_ai_fallback_example.txt',
-  text:readFileSync(new URL('../documents/07_ai_fallback_example.txt',import.meta.url),'utf8')};
+const file={name:'ai_fallback_example.txt',
+  text:readFileSync(new URL('../examples/ai_fallback_example.txt',import.meta.url),'utf8')};
 
 test('AI fixture is missing both values before model analysis',()=>{
  const row=analyze([file],'2026-03-10').rows[0];
