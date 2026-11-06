@@ -1,6 +1,6 @@
 import { analyze, deliveriesBefore, toPublicResult } from './engine.mjs';
 import { penaltyRateExtractor } from './extractors/penalty.mjs';
-import { fetchFallbackCandidates } from './ai-fallback.mjs';
+import { fetchFallbackCandidates, collectFallbackTargets } from './ai-fallback.mjs';
 
 const $ = id => document.getElementById(id);
 const money = n => n == null ? 'Нет данных' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n) + ' ₽';
@@ -16,9 +16,12 @@ let search = '';
 let aiCandidates = null;
 let aiController = null;
 let aiRunVersion = 0;
+let aiComparison = null;
 function invalidateAI({wipeKey=false}={}) {
   aiRunVersion++;
-  aiController?.abort(); aiController=null; aiCandidates=null;
+  aiController?.abort(); aiController=null; aiCandidates=null; aiComparison=null;
+  $('ai-impact').hidden=true;
+  $('ai-impact-list').replaceChildren();
   $('ai-run').disabled = !inputs.length;
   if (wipeKey) $('ai-key').value='';
   $('ai-status').textContent = 'По умолчанию анализ полностью локальный.';
@@ -237,6 +240,59 @@ function renderProposals() {
   }
   if (!count) host.append(el('p', 'Несогласованных предложений об изменении не найдено.', 'blank'));
 }
+function updateAIEligibility() {
+  if (!inputs.length) {
+    $('ai-eligibility').textContent='Загрузите документы для оценки возможной пользы AI.';
+    return;
+  }
+  const {targets, omitted}=collectFallbackTargets(inputs,$('asof').value);
+  const fieldCount=targets.reduce((sum,target)=>sum+target.missing.length,0);
+  $('ai-eligibility').textContent=fieldCount
+    ? 'Модель может проверить '+fieldCount+' нераспознанных полей в '+targets.length+
+      ' документах'+(omitted?' (ещё '+omitted+' за лимитом запросов)':'')+
+      '. Отсутствующие в исходных документах значения она не восстановит.'
+    : 'Для AI нет подходящих пропусков: локальный парсер уже нашёл значения либо документы требуют ручной проверки.';
+}
+function showAIComparison(before, after, report) {
+  aiComparison={before,after,report};
+  const panel=$('ai-impact');
+  const list=$('ai-impact-list');
+  panel.hidden=false; list.replaceChildren();
+  let improved=0;
+  for (const base of before.rows) {
+    const updated=after.rows.find(row=>row.id===base.id);
+    if (!updated) continue;
+    for (const field of ['amount','deadline']) {
+      if (base[field]) continue;
+      const data=updated[field];
+      const title=field==='amount'?'Сумма договора':'Срок поставки';
+      const format=field==='amount'?money:dateLabel;
+      const item=el('div',null,'ai-impact-item');
+      const head=el('strong',base.id+' · '+title,'ai-impact-name');
+      const values=el('div',null,'ai-impact-values');
+      values.append(el('span','До AI: Нет данных'));
+      const added=!!data?.via && data.via==='ai';
+      values.append(el('span',added ? 'После AI: '+format(data.value) :
+        'После AI: Нет подтверждённого значения',added?'ai-impact-good':'ai-impact-unchanged'));
+      item.append(head,values);
+      if (added && data.evidence) {
+        improved++;
+        const jump=el('button','Проверить исходную цитату ↗','evidence-link');
+        jump.type='button';
+        jump.addEventListener('click',()=>inspect(updated,title,format(data.value),data.evidence,
+          'ИИ-гипотеза: цитата подтверждена, юридический смысл требует проверки'));
+        item.append(jump);
+      }
+      list.append(item);
+    }
+  }
+  $('ai-impact-summary').textContent='Добавлено подтверждённых по источнику значений: '+improved+
+    ' из '+report.requestedFields+' запрошенных полей. Модель вернула «нет данных»: '+
+    report.emptyFields+'; кандидатов отклонено проверками: '+report.rejectedFields+
+    '; сетевых/API-ошибок: '+report.failedRequests+'. '+
+    (improved ? 'Найдите пометку «ИИ · проверить» в таблице.' :
+      'Таблица не изменилась: подтверждённых новых данных модель не предоставила.');
+}
 function renderIssues() {
   const host = $('issues'); host.replaceChildren();
   const items = [...analysis.issues];
@@ -275,6 +331,7 @@ function recalculate() {
     $('inspect-subtitle').textContent = 'Нажмите на сумму или срок в таблице, чтобы проверить основание.';
     $('inspect-content').replaceChildren(el('div', 'Выберите значение в реестре. Исходная цитата появится здесь.', 'inspect-placeholder'));
     render();
+    updateAIEligibility();
     $('ai-run').disabled = !!aiController || !inputs.length;
     message('Готово: ' + analysis.documents.length + ' документов, ' + analysis.rows.length +
       ' договоров. ' + (aiCandidates ? 'AI-кандидаты выделены для ручной проверки; TXT ранее передавались провайдеру.' :
@@ -324,6 +381,26 @@ $('demo').addEventListener('click', async () => {
     recalculate();
   } catch (error) { message('Учебные файлы недоступны: ' + error.message, true); }
 });
+$('ai-example').addEventListener('click', async () => {
+  const button=$('ai-example');
+  button.disabled=true;
+  try {
+    const response=await fetch('./documents/07_ai_fallback_example.txt');
+    if (!response.ok) throw Error('HTTP '+response.status);
+    const text=await response.text();
+    invalidateAI();
+    inputs=[{name:'07_ai_fallback_example.txt',text}];
+    filter='all'; search=''; $('search').value='';
+    document.querySelectorAll('[data-filter]').forEach(btn=>
+      btn.classList.toggle('active',btn.dataset.filter==='all'));
+    recalculate();
+    $('ai-panel').open=true;
+    message('Загружен отдельный синтетический договор для сравнения AI с локальными правилами. '+
+      'Сумма и срок должны оставаться «Нет данных» до проверки моделью.');
+  } catch(error) {
+    message('Не удалось открыть AI-пример: '+error.message,true);
+  } finally {button.disabled=false;}
+});
 $('ai-run').addEventListener('click', async () => {
   if (!inputs.length || aiController) return;
   const run = ++aiRunVersion;
@@ -333,6 +410,7 @@ $('ai-run').addEventListener('click', async () => {
   $('ai-run').disabled=true;
   $('ai-status').textContent='Подготовка запроса. Договоры будут переданы выбранному API.';
   try {
+    const baseline=analysis;
     const result=await fetchFallbackCandidates(inputs,$('asof').value,{
       endpoint:$('ai-endpoint').value,
       model:$('ai-model').value,
@@ -346,6 +424,7 @@ $('ai-run').addEventListener('click', async () => {
     if(run!==aiRunVersion || controller.signal.aborted) return;
     aiCandidates=result.candidates;
     recalculate();
+    showAIComparison(baseline,analysis,result);
     $('ai-status').textContent='AI: '+result.accepted+' подтверждённых по источнику кандидатов из '+
       result.requested+' документов; отклонений: '+result.failures.length+
       (result.omitted?'; лимит запросов: пропущено '+result.omitted:'')+
@@ -378,4 +457,6 @@ $('export').addEventListener('click', () => {
 });
 
 // Reproducible browser smoke-test / demo link; never uploads user files.
-if (new URLSearchParams(window.location.search).get('demo') === '1') $('demo').click();
+const query=new URLSearchParams(window.location.search);
+if (query.get('ai-demo')==='1') $('ai-example').click();
+else if (query.get('demo')==='1') $('demo').click();
