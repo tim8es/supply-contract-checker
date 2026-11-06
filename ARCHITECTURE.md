@@ -111,14 +111,20 @@ The deterministic pipeline remains the default. The separate
 Users supply their own OpenAI-compatible endpoint and API key; neither is
 persisted, exported nor committed.
 
-The fallback builds a bounded allowlist: missing prices/deadlines only from
-signed base documents or signed, effective, linked amendments. It excludes
-drafts, letters, unsigned/future or conflicting material, duplicate contract
-IDs and fully parsed fields. Up to 12 documents (14k chars each) are sent.
-The model returns a source block number and literal value token; the browser
-reconstructs the original quote, validates it and delegates signing, date
-and amendment precedence to the existing deterministic rules. Each accepted
-candidate is marked `via:'ai'` and shown as **requires manual review**.
+Every `Нет данных` amount, delivery date and daily penalty rate has
+a contextual **AI check button**. The request is restricted to the selected
+contract/field, up to 12 documents (14k chars each). Drafts, letters,
+unlinked and future or unsigned amendments are never submitted. An unsigned
+base contract or duplicate can be scanned **only for diagnostic evidence**:
+AI cannot turn its extracted term into authoritative current contract data.
+The deterministic engine remains the final authority on signing,
+effective dates and conflicts; otherwise the UI shows a cited diagnostic
+candidate while retaining `Нет данных`. A candidate that passes the source
+and legal rules is marked `via:'ai'` and flagged for manual review.
+
+Model citations first appear in the **inspector**, never forcing navigation
+to the original document. Opening the full source is an explicit second
+action.
 
 Source provenance is not equivalent to legal correctness. A model can still
 choose the wrong number in a valid original paragraph. No real model
