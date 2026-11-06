@@ -155,15 +155,17 @@ async function main() {
     const sourceJump=await evaluate("(()=>{const rail=document.querySelector('.workspace-aside');const line=rail.querySelector('.source-line.highlight');const lineRect=line?.getBoundingClientRect();const railRect=rail.getBoundingClientRect();return {lineVisible:!!lineRect && lineRect.top>=railRect.top-3 && lineRect.bottom<=railRect.bottom+3,railTop:rail.scrollTop,lineTop:lineRect?.top,railViewportTop:railRect.top,railViewportBottom:railRect.bottom}})()");
     assert(sourceJump.lineVisible,
       'Показать в исходном тексте must scroll to the highlighted citation, not the file selector: '+JSON.stringify(sourceJump));
-    await evaluate("document.querySelector('#rows tr:first-child td:nth-child(3) .evidence-link').click()");
-    const repeatInspector=await evaluate("({top:document.querySelector('.workspace-aside').scrollTop,text:document.querySelector('#inspect-content blockquote')?.textContent||''})");
-    assert(repeatInspector.top<5 && repeatInspector.text.includes('30.04.2026'),
-      'new source click after a TXT jump returns to the inspector at the top: '+JSON.stringify(repeatInspector));
     await evaluate("document.querySelector('#document-select').value='01_contract.txt';document.querySelector('#document-select').dispatchEvent(new Event('change',{bubbles:true}))");
     const timeline = await evaluate("document.querySelector('.term-history')?.innerText || ''");
     const normalizedTimeline = timeline.replace(/\s/gu, ' ');
     assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
+    // Check another value only AFTER verifying the amount history; clicking
+    // another field intentionally changes the inspector's history context.
+    await evaluate("document.querySelector('#rows tr:first-child td:nth-child(3) .evidence-link').click()");
+    const repeatInspector=await evaluate("({top:document.querySelector('.workspace-aside').scrollTop,text:document.querySelector('#inspect-content blockquote')?.textContent||''})");
+    assert(repeatInspector.top<5 && repeatInspector.text.includes('30.04.2026'),
+      'new source click after a TXT jump returns to the inspector at the top: '+JSON.stringify(repeatInspector));
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(4) button').click()");
     const penaltyProof=await evaluate("({value:document.querySelector('#inspect-content .fact-value')?.innerText,source:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText})");
     assert(penaltyProof.source === '01_contract.txt', 'inspector does not automatically change original TXT');
