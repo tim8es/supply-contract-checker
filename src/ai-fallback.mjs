@@ -25,11 +25,13 @@ export function validateEndpoint(input) {
 /** Only missing values from signed base contracts or effective signed addenda.
  * Letters, drafts, unknown/cross-supplier amendments and duplicates are not sent.
  */
-export function collectFallbackTargets(files,asOf) {
+export function collectFallbackTargets(files,asOf,{contractId=null,field=null}={}) {
+  if (field !== null && !FIELD_NAMES.includes(field)) throw Error('Неподдерживаемое поле для AI: '+field);
   const snapshot=analyze(files,asOf);
   const docs=new Map(snapshot.documents.map(x=>[x.name,x]));
   const eligible=[];
   for(const row of snapshot.rows) {
+    if(contractId !== null && row.id !== contractId) continue;
     if(row.review.some(x=>/Дубликат основного договора/u.test(x))) continue;
     if(row.amount && row.deadline) continue;
     const base=docs.get(row.source);
@@ -43,10 +45,10 @@ export function collectFallbackTargets(files,asOf) {
           norm(doc.supplier.value).toLocaleLowerCase('ru')!==norm(base.supplier.value).toLocaleLowerCase('ru'))
       )) continue;
       if(doc.text.length>MAX_TEXT) continue; // do not truncate evidence
-      const missing=FIELD_NAMES.filter(field=>!row[field] && !doc[field] &&
-        !doc.issues.some(x=>x==='Неоднозначная сумма' && field==='amount' ||
-                            x==='Неоднозначный срок поставки' && field==='deadline') &&
-        (doc.kind==='contract' || !!doc.termIntents[field]));
+      const missing=FIELD_NAMES.filter(name=>(field===null || name===field) && !row[name] && !doc[name] &&
+        !doc.issues.some(x=>x==='Неоднозначная сумма' && name==='amount' ||
+                            x==='Неоднозначный срок поставки' && name==='deadline') &&
+        (doc.kind==='contract' || !!doc.termIntents[name]));
       if(missing.length) eligible.push({doc,missing});
     }
   }
@@ -104,11 +106,11 @@ const SYSTEM_PROMPT=[
   'Возвращай только JSON: {"amount":null|{"blockLine":123,"valueText":"1 200 000"},"deadline":null|{"blockLine":124,"valueText":"30.04.2026"}}.',
   'blockLine — номер первого исходного ряда абзаца из списка; valueText — точный фрагмент числа/даты из абзаца.'
 ].join('\n');
-export async function fetchFallbackCandidates(files,asOf,{endpoint,model,apiKey,fetchImpl=fetch,signal,onProgress}={}) {
+export async function fetchFallbackCandidates(files,asOf,{endpoint,model,apiKey,contractId=null,field=null,fetchImpl=fetch,signal,onProgress}={}) {
   const url=validateEndpoint(endpoint);
   if(typeof model!=='string' || !model.trim() || model.length>150) throw Error('Укажите модель.');
   if(typeof apiKey!=='string' || !apiKey.trim()) throw Error('Введите API-ключ.');
-  const {targets,omitted}=collectFallbackTargets(files,asOf);
+  const {targets,omitted}=collectFallbackTargets(files,asOf,{contractId,field});
   const candidates=Object.create(null), failures=[];
   let accepted=0, emptyFields=0, rejectedFields=0, failedRequests=0;
   const requestedFields=targets.reduce((sum,x)=>sum+x.missing.length,0);
