@@ -45,3 +45,35 @@ test('original six-contract deadline values stay stable',async()=>{
   const values=analyze(docs,'2026-03-10').rows.map(x=>[x.id,x.deadline?.value ?? null]);
   assert.deepEqual(values,[['STN-101','2026-04-30'],['STN-102','2026-03-20'],['STN-103','2026-04-30']]);
 });
+
+test('agreed price is not suppressed by an advance in the next sentence',()=>{
+ const row=analyze([base('Общая стоимость поставки составляет 900 000 рублей. Аванс составляет 270 000 рублей. Срок поставки: 18.04.2026.')]).rows[0];
+ assert.equal(row.amount,null); // two conflicting agreed-price clauses => review, not silent winner
+});
+test('single agreed price with later advance in one paragraph is recognized',()=>{
+ const doc={...base(''),text:[
+  'ДОГОВОР ПОСТАВКИ № CTX-987',
+  'Статус: подписан обеими сторонами 01.02.2026.',
+  'Поставщик: ООО «Контекст».','',
+  'Общая стоимость поставки составляет 900 000 рублей. Аванс составляет 270 000 рублей. Срок поставки: 18.04.2026.'
+ ].join('\n')};
+ const row=analyze([doc]).rows[0];
+ assert.equal(row.amount?.value,900000);
+ assert.equal(row.deadline?.value,'2026-04-18');
+});
+test('agreed price is not suppressed by separate penalty cap statement',()=>{
+ const doc={...base(''),text:[
+  'ДОГОВОР ПОСТАВКИ № CTX-987','Статус: подписан обеими сторонами 01.02.2026.',
+  'Поставщик: ООО «Контекст».','',
+  'Цена договора — 700 000 рублей. Неустойка не более 10%. Срок поставки: 18.04.2026.'
+ ].join('\n')};
+ assert.equal(analyze([doc]).rows[0].amount?.value,700000);
+});
+test('advance without any agreed price must not be misinterpreted as contract price',()=>{
+ const doc={...base(''),text:[
+  'ДОГОВОР ПОСТАВКИ № CTX-987','Статус: подписан обеими сторонами 01.02.2026.',
+  'Поставщик: ООО «Контекст».','',
+  'Аванс по договору составляет 270 000 рублей. Стоимость определяется спецификацией.'
+ ].join('\n')};
+ assert.equal(analyze([doc]).rows[0].amount,null);
+});
