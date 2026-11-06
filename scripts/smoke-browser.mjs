@@ -121,6 +121,10 @@ async function main() {
     }
     assert(appReady,'app loaded before E2E assertions');
     await evaluate("new Promise((resolve,reject)=>{let n=0;const id=setInterval(()=>{if(document.querySelector('#rows')?.textContent.includes('STN-103')){clearInterval(id);resolve(true)}else if(++n>100){clearInterval(id);reject(Error('demo data not loaded'))}},100)})");
+    await call('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+    const dateAudit=await evaluate("(()=>{\n      const input=document.querySelector('#asof');\n      const read=()=>document.querySelector('#rows tr:first-child').innerText;\n      const update=v=>{input.value=v;input.dispatchEvent(new Event('change',{bubbles:true}));return read();};\n      const previous=update('2026-02-28');\n      const earlier=previous.replace(/\\s/gu,' ').includes('1 200 000') && previous.includes('15.04.2026') &&\n        !previous.replace(/\\s/gu,' ').includes('1 380 000');\n      const notYetSigned=update('2026-01-01');\n      const absent=(notYetSigned.match(/Нет данных/gu)||[]).length>=2;\n      const current=update('2026-03-10');\n      const restored=current.replace(/\\s/gu,' ').includes('1 380 000') &&\n        current.includes('30.04.2026') && input.value==='2026-03-10';\n      return {earlier,absent,restored};\n    })()");
+    assert(dateAudit.earlier && dateAudit.absent && dateAudit.restored,
+      'as-of date changes enforce signed/effective chronology: '+JSON.stringify(dateAudit));
     let rows = await evaluate("document.querySelector('#rows').innerText");
     assert(rows.includes('STN-101') && rows.includes('STN-102') && rows.includes('STN-103'), 'demo table');
 
@@ -173,7 +177,16 @@ async function main() {
       'one-field-at-a-time source-grounded AI recovery: '+JSON.stringify(inlineAI));
     assert(inlineAI.optIn && inlineAI.revoked && inlineAI.cleared,
       'browser settings storage consent/revoke/reset: '+JSON.stringify(inlineAI));
-    console.log('Browser E2E OK: registry AI per-field, cited results, local settings consent and clear.');
+    const railAudit=await evaluate("(async()=>{\n  const side=document.querySelector('.workspace-aside');\n  const inspector=side.querySelector('.inspector');\n  const source=side.querySelector('.source-view');\n  const main=document.querySelector('.workspace-main');\n  const spacer=document.createElement('div');\n  spacer.style.height='1400px';\n  spacer.setAttribute('aria-hidden','true');\n  main.append(spacer);\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const style=getComputedStyle(side);\n  const inspectorStyle=getComputedStyle(inspector);\n  const viewport={width:innerWidth,height:innerHeight};\n  const rail=style.position==='sticky' && style.overflowY==='auto' &&\n    side.clientHeight<=innerHeight && side.scrollHeight>side.clientHeight;\n  const inner=inspectorStyle.position==='sticky' && inspectorStyle.overflowY==='auto' &&\n    inspector.clientHeight<=Math.round(innerHeight*.48);\n  const start=document.querySelector('.workspace').getBoundingClientRect().top+scrollY;\n  window.scrollTo(0,start+200);\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const bodyScroll=scrollY>300;\n  const stickyTop=side.getBoundingClientRect().top;\n  const pinned=stickyTop>=8 && stickyTop<=20;\n  side.scrollTop=Math.min(180,side.scrollHeight-side.clientHeight);\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const innerScroll=side.scrollTop>50 &&\n    Math.abs(inspector.getBoundingClientRect().top-side.getBoundingClientRect().top)<=4;\n  source.scrollTop=Math.min(100,source.scrollHeight-source.clientHeight);\n  const sourceScroll=source.scrollTop>0;\n  spacer.remove();\n  window.scrollTo(0,0);\n  side.scrollTop=0;\n  source.scrollTop=0;\n  return {viewport,rail,inner,bodyScroll,pinned,innerScroll,sourceScroll,stickyTop};\n})()");
+    assert(railAudit.rail && railAudit.inner && railAudit.bodyScroll &&
+      railAudit.pinned && railAudit.innerScroll && railAudit.sourceScroll,
+      'desktop right-rail independently scrolls and inspector stays sticky: '+JSON.stringify(railAudit));
+    await call('Emulation.setDeviceMetricsOverride',
+      {width:430,height:900,deviceScaleFactor:1,mobile:true});
+    const mobileAudit=await evaluate("(async()=>{\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const side=document.querySelector('.workspace-aside');\n  const inspector=side.querySelector('.inspector');\n  const style=getComputedStyle(side);\n  const iStyle=getComputedStyle(inspector);\n  const box=side.getBoundingClientRect();\n  const ok=innerWidth<=1100 && style.position==='static' && style.height==='auto' &&\n    iStyle.position==='static' && style.overflowY==='visible' && box.width>0 &&\n    box.left>=-1 && box.right<=innerWidth+1;\n  return {ok,width:innerWidth,position:style.position,height:style.height,overflow:style.overflowY,rect:box.toJSON()};\n})()");
+    assert(mobileAudit.ok,'mobile inspector returns to natural page flow: '+JSON.stringify(mobileAudit));
+    console.log('Browser E2E OK: historical as-of date, sticky independent desktop evidence rail, mobile flow and BYOK AI.');
+
   } finally {
     ws?.close();
     chrome?.kill('SIGTERM');
