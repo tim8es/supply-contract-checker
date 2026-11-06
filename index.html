@@ -48,41 +48,6 @@
       </section>
       <p id="message" role="status" class="feedback" aria-live="polite">Загрузите файлы или откройте учебный набор из шести документов.</p>
 
-      <details class="ai-panel" id="ai-panel">
-        <summary>Дополнительный AI-анализ <span class="ai-tag">Необязательно · Ваш API-ключ</span></summary>
-        <div class="ai-panel-body">
-          <p class="ai-warning">Только по вашему нажатию выбранные TXT-фрагменты будут отправлены внешнему API. Не используйте конфиденциальные договоры без согласования. Ключ хранится только в памяти открытой вкладки, не экспортируется и не записывается в хранилище.</p>
-          <div class="ai-controls">
-            <label>OpenAI-совместимый endpoint
-              <input id="ai-endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1/chat/completions">
-            </label>
-            <label>Модель
-              <input id="ai-model" type="text" spellcheck="false" autocomplete="off" placeholder="Название модели у провайдера">
-            </label>
-            <label>API-ключ
-              <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вводится только на эту сессию">
-            </label>
-          </div>
-          <div class="ai-demo-callout">
-            <div><strong>Проверить, что модель действительно улучшает результат</strong>
-              <p>В исходном учебном наборе почти все поля уже найдены, а отсутствующую в тексте сумму ИИ не должен придумывать. Откройте отдельный договор с непривычными формулировками и сравните «до» и «после».</p></div>
-            <button class="button secondary" id="ai-example" type="button">Открыть сложный пример для AI ↗</button>
-          </div>
-          <p class="ai-eligibility" id="ai-eligibility" role="status">Загрузите документы, чтобы увидеть, какие пропущенные условия можно отправить на дополнительный анализ.</p>
-          <div class="ai-actions">
-            <button class="button primary" id="ai-run" type="button" disabled>Уточнить пропущенные поля через AI</button>
-            <button class="button secondary" id="ai-reset" type="button">Удалить AI-результаты и ключ</button>
-            <span id="ai-status" role="status" aria-live="polite">По умолчанию анализ полностью локальный.</span>
-          </div>
-          <div class="ai-impact" id="ai-impact" hidden aria-live="polite">
-            <h3>Результат: локальные правила → AI Fallback</h3>
-            <p id="ai-impact-summary" class="ai-impact-summary"></p>
-            <div id="ai-impact-list" class="ai-impact-list"></div>
-          </div>
-          <p class="ai-note">Поддерживается OpenAI-совместимый chat/completions API с CORS. Модель возвращает гипотезы, не подтверждает подписи и не меняет юридические правила. Каждый AI-результат отмечен для ручной проверки. GitHub Pages не хранит ключи.</p>
-        </div>
-      </details>
-
       <section class="metrics" aria-label="Сводка">
         <article class="metric"><div class="metric-label">Договоров <span class="metric-icon">▦</span></div><strong id="metric-count">—</strong><small>найдено в документах</small></article>
         <article class="metric"><div class="metric-label">Проверяемых условий <span class="metric-icon">◈</span></div><strong id="metric-confirmed">—</strong><small>суммы и сроки с цитатой</small></article>
@@ -95,15 +60,44 @@
           <div class="card registry">
             <div class="card-head">
               <div><p class="overline">01 / РЕЕСТР</p><h2>Действующие условия</h2><p class="hint">Выберите значение, чтобы проверить основание.</p></div>
-              <button class="button ghost" id="export" type="button" disabled>↓ Экспорт JSON</button>
+              <div class="registry-actions">
+                <button class="button ghost" id="ai-settings-toggle" type="button" aria-expanded="false" aria-controls="ai-settings">⚙ Настройки ИИ</button>
+                <button class="button ghost" id="export" type="button" disabled>↓ Экспорт JSON</button>
+              </div>
             </div>
+            <section id="ai-settings" class="inline-ai-settings" hidden aria-label="Настройки модели">
+              <div class="inline-ai-head">
+                <strong>Модель для поиска недостающих условий</strong>
+                <span id="ai-save-status" role="status" aria-live="polite">Настройки модели сохраняются только в этом браузере.</span>
+              </div>
+              <div class="ai-controls">
+                <label>API endpoint
+                  <input id="ai-endpoint" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1/chat/completions">
+                </label>
+                <label>Модель
+                  <input id="ai-model" type="text" spellcheck="false" autocomplete="off" placeholder="Название модели">
+                </label>
+                <label>API-ключ
+                  <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Ключ провайдера">
+                </label>
+              </div>
+              <label class="ai-remember"><input id="ai-remember-key" type="checkbox"> Сохранять API-ключ на этом устройстве (без шифрования — только для личного браузера)</label>
+              <div class="ai-settings-foot">
+                <p>Адрес и модель сохраняются автоматически. Ключ — только с согласия выше. TXT передаются провайдеру только по кнопке в нужной ячейке; у провайдера должен быть разрешён CORS. Значения ИИ требуют ручной проверки.</p>
+                <button class="button secondary" id="ai-clear-settings" type="button">Удалить настройки и AI-результаты</button>
+              </div>
+            </section>
+            <div id="ai-feedback" class="inline-ai-feedback" role="status" aria-live="polite" hidden></div>
             <div class="table-controls">
               <div class="segmented" role="group" aria-label="Фильтр договоров">
                 <button type="button" class="active" data-filter="all">Все</button>
                 <button type="button" data-filter="before">До 01.04.2026</button>
                 <button type="button" data-filter="review">На проверку</button>
               </div>
-              <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
+              <div class="registry-tools">
+                <button class="button ghost" id="ai-example" type="button" title="Загрузить договор с двумя условиями, которые не распознаёт локальный парсер">Пример для ИИ</button>
+                <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
+              </div>
             </div>
             <div class="table-scroll">
               <table>

@@ -1,6 +1,7 @@
 import { analyze, deliveriesBefore, toPublicResult } from './engine.mjs';
 import { penaltyRateExtractor } from './extractors/penalty.mjs';
 import { fetchFallbackCandidates, collectFallbackTargets } from './ai-fallback.mjs';
+import {loadModelSettings,saveModelSettings,clearModelSettings} from './model-settings.mjs';
 
 const $ = id => document.getElementById(id);
 const money = n => n == null ? 'Нет данных' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n) + ' ₽';
@@ -16,15 +17,37 @@ let search = '';
 let aiCandidates = null;
 let aiController = null;
 let aiRunVersion = 0;
-let aiComparison = null;
+const aiCellState=new Map();
+let aiEligible=new Set();
+const fieldKey=(id,field)=>id+':'+field;
+function browserStorage() {try {return window.localStorage;} catch {return null;}}
+function showAISettings() {
+  $('ai-settings').hidden=false;
+  $('ai-settings-toggle').setAttribute('aria-expanded','true');
+}
+function persistSettings() {
+  const okay=saveModelSettings(browserStorage(),{
+    endpoint:$('ai-endpoint').value,model:$('ai-model').value,
+    rememberKey:$('ai-remember-key').checked,apiKey:$('ai-key').value
+  });
+  $('ai-save-status').textContent=okay?'Настройки сохранены в этом браузере.':
+    'Локальное хранилище недоступно: настройки сохранятся только до закрытия страницы.';
+}
+function restoreSettings() {
+  const data=loadModelSettings(browserStorage());
+  $('ai-endpoint').value=data.endpoint;
+  $('ai-model').value=data.model;
+  $('ai-key').value=data.apiKey;
+  $('ai-remember-key').checked=data.rememberKey;
+}
 function invalidateAI({wipeKey=false}={}) {
   aiRunVersion++;
-  aiController?.abort(); aiController=null; aiCandidates=null; aiComparison=null;
-  $('ai-impact').hidden=true;
-  $('ai-impact-list').replaceChildren();
-  $('ai-run').disabled = !inputs.length;
-  if (wipeKey) $('ai-key').value='';
-  $('ai-status').textContent = 'По умолчанию анализ полностью локальный.';
+  aiController?.abort();
+  aiController=null; aiCandidates=null;
+  aiCellState.clear();
+  $('ai-feedback').hidden=true;
+  $('ai-feedback').textContent='';
+  if(wipeKey) $('ai-key').value='';
 }
 
 function el(type, text = null, className = '') {
@@ -160,6 +183,19 @@ function valueCell(row, field, formatter, label) {
     explain.addEventListener('click', () => inspect(row, label, 'Нет данных', null,
       'Значение не удалось подтвердить по загруженным документам'));
     cell.append(explain);
+    const key=fieldKey(row.id,field);
+    if(aiEligible.has(key)) {
+      const status=aiCellState.get(key);
+      const button=el('button',status?.status==='loading'?'Ищем…':'✦ Проверить через ИИ','ai-cell-action');
+      button.type='button';
+      button.dataset.aiField=field;
+      button.dataset.contract=row.id;
+      button.disabled=!!aiController;
+      button.addEventListener('click',()=>runFieldAI(row.id,field));
+      cell.append(button);
+      if(status?.message) cell.append(el('span',status.message,
+        'ai-cell-message'+(status.status==='error'?' error':'')));
+    }
   }
   return cell;
 }
@@ -240,59 +276,6 @@ function renderProposals() {
   }
   if (!count) host.append(el('p', 'Несогласованных предложений об изменении не найдено.', 'blank'));
 }
-function updateAIEligibility() {
-  if (!inputs.length) {
-    $('ai-eligibility').textContent='Загрузите документы для оценки возможной пользы AI.';
-    return;
-  }
-  const {targets, omitted}=collectFallbackTargets(inputs,$('asof').value);
-  const fieldCount=targets.reduce((sum,target)=>sum+target.missing.length,0);
-  $('ai-eligibility').textContent=fieldCount
-    ? 'Модель может проверить '+fieldCount+' нераспознанных полей в '+targets.length+
-      ' документах'+(omitted?' (ещё '+omitted+' за лимитом запросов)':'')+
-      '. Отсутствующие в исходных документах значения она не восстановит.'
-    : 'Для AI нет подходящих пропусков: локальный парсер уже нашёл значения либо документы требуют ручной проверки.';
-}
-function showAIComparison(before, after, report) {
-  aiComparison={before,after,report};
-  const panel=$('ai-impact');
-  const list=$('ai-impact-list');
-  panel.hidden=false; list.replaceChildren();
-  let improved=0;
-  for (const base of before.rows) {
-    const updated=after.rows.find(row=>row.id===base.id);
-    if (!updated) continue;
-    for (const field of ['amount','deadline']) {
-      if (base[field]) continue;
-      const data=updated[field];
-      const title=field==='amount'?'Сумма договора':'Срок поставки';
-      const format=field==='amount'?money:dateLabel;
-      const item=el('div',null,'ai-impact-item');
-      const head=el('strong',base.id+' · '+title,'ai-impact-name');
-      const values=el('div',null,'ai-impact-values');
-      values.append(el('span','До AI: Нет данных'));
-      const added=!!data?.via && data.via==='ai';
-      values.append(el('span',added ? 'После AI: '+format(data.value) :
-        'После AI: Нет подтверждённого значения',added?'ai-impact-good':'ai-impact-unchanged'));
-      item.append(head,values);
-      if (added && data.evidence) {
-        improved++;
-        const jump=el('button','Проверить исходную цитату ↗','evidence-link');
-        jump.type='button';
-        jump.addEventListener('click',()=>inspect(updated,title,format(data.value),data.evidence,
-          'ИИ-гипотеза: цитата подтверждена, юридический смысл требует проверки'));
-        item.append(jump);
-      }
-      list.append(item);
-    }
-  }
-  $('ai-impact-summary').textContent='Добавлено подтверждённых по источнику значений: '+improved+
-    ' из '+report.requestedFields+' запрошенных полей. Модель вернула «нет данных»: '+
-    report.emptyFields+'; кандидатов отклонено проверками: '+report.rejectedFields+
-    '; сетевых/API-ошибок: '+report.failedRequests+'. '+
-    (improved ? 'Найдите пометку «ИИ · проверить» в таблице.' :
-      'Таблица не изменилась: подтверждённых новых данных модель не предоставила.');
-}
 function renderIssues() {
   const host = $('issues'); host.replaceChildren();
   const items = [...analysis.issues];
@@ -318,6 +301,10 @@ function recalculate() {
   if (!inputs.length) return;
   try {
     analysis = analyze(inputs, $('asof').value,{extractors:[penaltyRateExtractor],aiCandidates});
+    aiEligible=new Set();
+    for(const entry of collectFallbackTargets(inputs,$('asof').value).targets)
+      for(const field of entry.missing)
+        if (entry.doc.id) aiEligible.add(fieldKey(entry.doc.id,field));
     const select = $('document-select');
     const chosen = select.value;
     select.replaceChildren();
@@ -331,8 +318,6 @@ function recalculate() {
     $('inspect-subtitle').textContent = 'Нажмите на сумму или срок в таблице, чтобы проверить основание.';
     $('inspect-content').replaceChildren(el('div', 'Выберите значение в реестре. Исходная цитата появится здесь.', 'inspect-placeholder'));
     render();
-    updateAIEligibility();
-    $('ai-run').disabled = !!aiController || !inputs.length;
     message('Готово: ' + analysis.documents.length + ' документов, ' + analysis.rows.length +
       ' договоров. ' + (aiCandidates ? 'AI-кандидаты выделены для ручной проверки; TXT ранее передавались провайдеру.' :
       'TXT обработаны локально; ничего не отправлено на сервер.'));
@@ -394,58 +379,86 @@ $('ai-example').addEventListener('click', async () => {
     document.querySelectorAll('[data-filter]').forEach(btn=>
       btn.classList.toggle('active',btn.dataset.filter==='all'));
     recalculate();
-    $('ai-panel').open=true;
+    document.querySelector('[data-ai-field]')?.focus();
     message('Загружен отдельный синтетический договор для сравнения AI с локальными правилами. '+
       'Сумма и срок должны оставаться «Нет данных» до проверки моделью.');
   } catch(error) {
     message('Не удалось открыть AI-пример: '+error.message,true);
   } finally {button.disabled=false;}
 });
-$('ai-run').addEventListener('click', async () => {
-  if (!inputs.length || aiController) return;
-  const run = ++aiRunVersion;
-  const controller = new AbortController();
-  aiController = controller;
+async function runFieldAI(contractId,field) {
+  if(!inputs.length || aiController || !aiEligible.has(fieldKey(contractId,field))) return;
+  const key=fieldKey(contractId,field);
+  const endpoint=$('ai-endpoint').value.trim();
+  const model=$('ai-model').value.trim();
+  const apiKey=$('ai-key').value.trim();
+  if(!endpoint || !model || !apiKey) {
+    showAISettings();
+    aiCellState.set(key,{status:'error',message:'Укажите API, модель и ключ в настройках.'});
+    renderTable();
+    $('ai-endpoint').focus();
+    return;
+  }
+  const run=++aiRunVersion;
+  const controller=new AbortController();
+  aiController=controller;
   const timeout=setTimeout(()=>controller.abort(),90000);
-  $('ai-run').disabled=true;
-  $('ai-status').textContent='Подготовка запроса. Договоры будут переданы выбранному API.';
+  aiCellState.set(key,{status:'loading',message:'Запрашиваем модель для этого условия…'});
+  renderTable();
   try {
-    const baseline=analysis;
     const result=await fetchFallbackCandidates(inputs,$('asof').value,{
-      endpoint:$('ai-endpoint').value,
-      model:$('ai-model').value,
-      apiKey:$('ai-key').value,
-      signal:controller.signal,
-      onProgress:({completed,total,filename})=>{
-        if (run===aiRunVersion) $('ai-status').textContent='Обработано '+completed+'/'+total+
-          (filename?' · '+filename:'');
-      }
+      endpoint,model,apiKey,contractId,field,signal:controller.signal
     });
-    if(run!==aiRunVersion || controller.signal.aborted) return;
-    aiCandidates=result.candidates;
-    recalculate();
-    showAIComparison(baseline,analysis,result);
-    $('ai-status').textContent='AI: '+result.accepted+' подтверждённых по источнику кандидатов из '+
-      result.requested+' документов; отклонений: '+result.failures.length+
-      (result.omitted?'; лимит запросов: пропущено '+result.omitted:'')+
-      '. Гипотезы требуют ручной проверки.';
-    if(result.failures.length) message('AI: '+result.failures.join('; ')+
-      '. Если API не поддерживает CORS, понадобится серверный прокси.',true);
+    if(run!==aiRunVersion || controller.signal.aborted)return;
+    if(result.accepted) {
+      const merged=Object.assign(Object.create(null),aiCandidates||{});
+      for(const [file,values] of Object.entries(result.candidates))
+        merged[file]={...(merged[file]||{}),...values};
+      aiCandidates=merged;
+      recalculate();
+    }
+    const updated=analysis.rows.find(row=>row.id===contractId)?.[field];
+    if(updated?.via==='ai') aiCellState.delete(key);
+    else {
+      const description=result.failedRequests?'Ошибка API или CORS. Проверьте параметры подключения.':
+        result.rejectedFields?'Ответ модели не прошёл проверку по документу.':
+        result.emptyFields?'Модель не нашла подтверждаемого значения. Нужна ручная проверка.':
+        'Невозможно установить действующее значение — проверьте документы.';
+      aiCellState.set(key,{status:result.failedRequests?'error':'empty',message:description});
+    }
   } catch(error) {
-    if(run===aiRunVersion) $('ai-status').textContent='AI-запрос не выполнен: '+error.message+
-      '. Проверьте endpoint, модель, ключ и CORS.';
+    if(run===aiRunVersion) {
+      aiCellState.set(key,{status:'error',message:'Не удалось выполнить запрос: '+
+        (/отменён/iu.test(error.message)?'превышено время ожидания.':
+        'проверьте URL, модель, ключ и CORS.')});
+    }
   } finally {
     clearTimeout(timeout);
     if(run===aiRunVersion) {
       aiController=null;
-      $('ai-run').disabled=!inputs.length;
+      renderTable();
     }
   }
+}
+$('ai-settings-toggle').addEventListener('click',()=>{
+  const willOpen=$('ai-settings').hidden;
+  $('ai-settings').hidden=!willOpen;
+  $('ai-settings-toggle').setAttribute('aria-expanded',String(willOpen));
 });
-$('ai-reset').addEventListener('click',()=>{
+for(const id of ['ai-endpoint','ai-model','ai-key']) {
+  $(id).addEventListener('input',persistSettings);
+}
+$('ai-remember-key').addEventListener('change',persistSettings);
+$('ai-clear-settings').addEventListener('click',()=>{
   invalidateAI({wipeKey:true});
+  clearModelSettings(browserStorage());
+  $('ai-endpoint').value='';
+  $('ai-model').value='';
+  $('ai-remember-key').checked=false;
+  $('ai-save-status').textContent='Настройки удалены из этого браузера.';
   if(inputs.length) recalculate();
 });
+restoreSettings();
 $('export').addEventListener('click', () => {
   if (!analysis) return;
   const json = JSON.stringify(toPublicResult(analysis), null, 2);
