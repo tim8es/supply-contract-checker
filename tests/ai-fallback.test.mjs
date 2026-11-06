@@ -191,11 +191,11 @@ test('requested field and contract filter keep unrelated documents out of the AP
  assert.ok(!result.candidates[first.name].deadline);
 });
 test('penalty rate is supported as an AI-only source-grounded plugin field',()=>{
- const doc=contract('Неустойка за каждый день просрочки составляет 0,25% от суммы договора.');
+ const doc=contract('Размер пеней составляет 0,25% от суммы за каждый день просрочки.');
  const target=collectFallbackTargets([doc],'2026-03-10',{field:'penaltyRate'});
  assert.equal(target.targets.length,1);
  assert.deepEqual(target.targets[0].missing,['penaltyRate']);
- const found=candidate(doc,'penaltyRate',block(doc,'Неустойка'),'0,25%');
+ const found=candidate(doc,'penaltyRate',block(doc,'Размер пеней'),'0,25%');
  assert.equal(found?.value,0.25);
  const row=analyze([doc],'2026-03-10',{
    extractors:[penaltyRateExtractor],aiCandidates:{[doc.name]:{penaltyRate:found}}
