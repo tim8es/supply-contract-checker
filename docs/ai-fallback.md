@@ -4,6 +4,28 @@ The main Supply Contract Checker is **offline-first and functional without a
 model or API key**. The AI mode is optional and starts only when the procurement
 user explicitly clicks **«Уточнить пропущенные поля через AI»**.
 
+## Why the original sample may not change
+
+The six initial files are **not an AI quality demonstration**: rules already
+extract all available agreed amounts/deadlines except a missing STN-103
+contract price, which lives in an absent annex. No model can legitimately
+supply this value from the uploaded text. A correct fallback returns null.
+
+**To observe a measurable difference**, open
+[the separate AI demo](https://tim8es.github.io/supply-contract-checker/?ai-demo=1)
+or click the **«Открыть сложный пример для AI»** button. It loads a seventh
+synthetic TXT *instead of* the original six. Its price and delivery date
+are stated in unfamiliar but explicit wording; the deterministic parser
+starts with two missing fields. After a real API call, the comparison
+panel shows each original missing field, any verified-by-source new value,
+and why a field remained unknown.
+
+The comparison reports separately: fields for which the model returned
+null, proposals rejected by the citation/context checker, and network/API
+failures. It never fabricates a result or pretends a model was called.
+Unit and browser E2E tests use a fake provider to verify this workflow;
+they are **not** evidence of any particular external model's accuracy.
+
 ## How to use
 
 1. Open the public or local HTML app and upload TXT documents as usual.

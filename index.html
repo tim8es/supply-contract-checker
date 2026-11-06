@@ -63,10 +63,21 @@
               <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вводится только на эту сессию">
             </label>
           </div>
+          <div class="ai-demo-callout">
+            <div><strong>Проверить, что модель действительно улучшает результат</strong>
+              <p>В исходном учебном наборе почти все поля уже найдены, а отсутствующую в тексте сумму ИИ не должен придумывать. Откройте отдельный договор с непривычными формулировками и сравните «до» и «после».</p></div>
+            <button class="button secondary" id="ai-example" type="button">Открыть сложный пример для AI ↗</button>
+          </div>
+          <p class="ai-eligibility" id="ai-eligibility" role="status">Загрузите документы, чтобы увидеть, какие пропущенные условия можно отправить на дополнительный анализ.</p>
           <div class="ai-actions">
             <button class="button primary" id="ai-run" type="button" disabled>Уточнить пропущенные поля через AI</button>
             <button class="button secondary" id="ai-reset" type="button">Удалить AI-результаты и ключ</button>
             <span id="ai-status" role="status" aria-live="polite">По умолчанию анализ полностью локальный.</span>
+          </div>
+          <div class="ai-impact" id="ai-impact" hidden aria-live="polite">
+            <h3>Результат: локальные правила → AI Fallback</h3>
+            <p id="ai-impact-summary" class="ai-impact-summary"></p>
+            <div id="ai-impact-list" class="ai-impact-list"></div>
           </div>
           <p class="ai-note">Поддерживается OpenAI-совместимый chat/completions API с CORS. Модель возвращает гипотезы, не подтверждает подписи и не меняет юридические правила. Каждый AI-результат отмечен для ручной проверки. GitHub Pages не хранит ключи.</p>
         </div>
