@@ -72,7 +72,12 @@ function best(candidates) {
 function priceCandidates(doc, proposed) {
   const found = [];
   for (const block of doc.blocks) {
-    const flat = normalize(block.text);
+    // Separate independent price clauses so a following advance, budget or
+    // penalty cannot suppress a preceding agreed contract price.
+    const clauses = normalize(block.text)
+      .split(/;\s*|(?<=[.!?])\s+(?=[А-ЯЁ])/u)
+      .map(x => x.trim()).filter(Boolean);
+    for (const flat of clauses) {
     const explicitProposal = /(?:предлагается|предлагаем|просим|проект)/iu.test(flat);
     if (proposed && !explicitProposal && !['draft','letter'].includes(doc.kind)) continue;
     if (!proposed && (['draft','letter'].includes(doc.kind) || /(?:предлагается|предлагаем|проект\s+изменения)/iu.test(flat))) continue;
@@ -103,32 +108,51 @@ function priceCandidates(doc, proposed) {
         found.push({ ...result(doc, block, value, 'amount', num[0]), score: anchor.score });
       }
     }
+    }
   }
   return best(found);
 }
 function deadlineCandidates(doc, proposed) {
   const found = [];
+  // Date selection is local to a delivery clause, not the entire paragraph.
+  // A preceding payment, signing or acceptance date MUST NOT become delivery.
+  const anchorRe = /(?:срок\s+(?:поставки|отгрузки)|дат[ауы]\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/giu;
+  const directRe = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|дат[ауы]\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на|\sна\s+)/iu;
   for (const block of doc.blocks) {
-    const flat = normalize(block.text);
-    if (!/поставк|поставить|отгрузк|отгрузить|передать\s+товар/iu.test(flat)) continue;
-    if (/оплат[аыуе]|приемк|приёмк/iu.test(flat) &&
-        !/(?:поставк|поставить).{0,80}(?:не\s+позднее|до|срок)/iu.test(flat)) continue;
-    const isProposal = ['draft','letter'].includes(doc.kind) || /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(flat);
-    if (proposed !== isProposal) continue;
-    const dates = [...flat.matchAll(DATE_RE)]
-      .map(match => ({ value: toIso(match[0]), index: match.index, raw:match[0] }))
-      .filter(match => match.value);
-    if (!dates.length) continue;
-    const hasClearAnchor = /(?:срок\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/iu.test(flat);
-    if (!hasClearAnchor) continue;
-    const direct = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на)/iu.test(flat);
-    if (!direct) continue;
-    // "с OLD на NEW": date following "на" is the replacement regardless
-    // of document status. A signed addendum may use the same wording as a letter.
-    const transition = dates.find((candidate, index) => index > 0 &&
-      /\sна\s*$/iu.test(flat.slice(0, candidate.index)));
-    const selected = transition || (proposed ? dates.at(-1) : dates[0]);
-    found.push({ ...result(doc, block, selected.value, 'deliveryDeadline', selected.raw), score: /не\s+позднее/iu.test(flat) ? 5 : 4 });
+    // Only split clearly delimited independent clauses. Preserve the complete
+    // original block for the user-facing quote and 1-based source interval.
+    const clauses = normalize(block.text)
+      .split(/;\s*|(?<=[.!?])\s+(?=[А-ЯЁ])/u)
+      .map(x => x.trim()).filter(Boolean);
+    for (const clause of clauses) {
+      const isProposal = ['draft','letter'].includes(doc.kind) ||
+        /предлага(?:ется|ем|ет)|просим\s+перенести|планируем\s+перенести/iu.test(clause);
+      if (proposed !== isProposal) continue;
+      const anchor = [...clause.matchAll(anchorRe)][0];
+      if (!anchor) continue;
+      // Ignore dates which occurred before "срок поставки"/"поставить".
+      const relevant = clause.slice(anchor.index);
+      if (!directRe.test(relevant)) continue;
+      const dates = [...relevant.matchAll(DATE_RE)]
+        .map(match => ({ value: toIso(match[0]), index: match.index, raw: match[0] }))
+        .filter(x => x.value);
+      if (!dates.length) continue;
+      const transition = dates.find((candidate, index) => index > 0 &&
+        /\sна\s*$/iu.test(relevant.slice(0, candidate.index)));
+      // Two separate dates in a single clause (without an explicit "с...на"
+      // transition) are not one authoritative delivery date. Abstain instead.
+      if (dates.length > 1 && !transition) {
+        for (const date of dates) {
+          found.push({ ...result(doc, block, date.value, 'deliveryDeadline', date.raw), score: 4 });
+        }
+        continue;
+      }
+      const selected = transition || dates[0];
+      found.push({
+        ...result(doc, block, selected.value, 'deliveryDeadline', selected.raw),
+        score: /не\s+позднее/iu.test(relevant) ? 5 : 4
+      });
+    }
   }
   return best(found);
 }

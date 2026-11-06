@@ -7,7 +7,7 @@ npm test
 node scripts/analyze.mjs --input documents --date 2026-03-10
 ```
 
-Current suite consists of **109 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
+Current suite consists of **121 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
 - basic acceptance (six supplied documents, expected amounts and deadlines);
 - exact provenance and non-invention of missing values;
 - new contract with different filename/number/amount/date;
@@ -22,7 +22,8 @@ Current suite consists of **109 Node test cases**, including an independently sp
 - later signed corrections and effective dates written in Russian words.
 - exact source-span, file, numeric/date token and normalized value validation;
 - optional penalty extractor: daily rate versus cap, signed/unsigned amendments, CLI and JSON;
-- a separate non-gating **36-case synthetic holdout** with precision/recall and a permanent list of failures.
+- a separate non-gating **36-case synthetic holdout** with precision/recall and a permanent list of failures;
+- adversarial payment/signing/acceptance dates preceding delivery in the same paragraph, and a legitimate contract price adjacent to an advance or penalty cap.
 
 GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: loads `/?demo=1`, verifies three rendered contracts, clicks the «До 01.04.2026» filter, opens the STN-101 amount with highlighted original citation, additionally opens the penalty rate and its original source, then uploads a new TXT via the File API and checks its extracted amount/date. A separate DOM smoke test and desktop/mobile screenshots accompany PR CI.
 
@@ -43,6 +44,8 @@ GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: l
 10. Upload a document missing amount and date; it must say **«Нет данных»** and require review. Upload two conflicting base documents with the same ID; it must not silently choose one.
 11. Create a signed effective addendum that explicitly changes the amount but describes it via a missing specification: the old amount must become **«Нет данных»**, and its history must link to the triggering amendment paragraph.
 12. In a signed effective addendum, use `Изменить сумму договора с 1 200 000 рублей на 1 380 000 рублей` and `Перенести срок поставки с 15.04.2026 на 30.04.2026`: the parser must show **new** values, not old ones.
+
+13. In one paragraph put `Оплата до 10.04.2026. Поставка до 03.04.2026`: the active delivery date must be **03.04.2026**, not the earlier payment date. Separately check that `Цена договора 900 000 рублей. Аванс 270 000 рублей.` reports **900 000 рублей**.
 
 ## Known limitations and future QA
 
