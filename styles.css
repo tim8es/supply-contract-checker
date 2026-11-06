@@ -186,9 +186,25 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
   .upload-actions .button{flex:1 1 135px;text-align:center}
 }
 
-/* Desktop: evidence is a separate scrollable work area. The whole right
-   column stays in view while the document list / registry scrolls on the
-   page. Inside it, the source inspector stays pinned above the TXT view. */
+/* A single scroll surface for BOTH evidence cards: the quote inspector and
+   the full original TXT have natural heights and move together. Neither
+   card can trap mouse wheel/touch scrolling in its own nested viewport. */
+.workspace-aside .inspector {
+  position:static;
+  flex-shrink:0;
+  max-height:none;
+  height:auto;
+  overflow:visible;
+}
+.workspace-aside .document-card { flex-shrink:0; }
+.workspace-aside .source-view {
+  max-height:none;
+  height:auto;
+  overflow:visible;
+}
+
+/* Desktop: the whole right column remains visible when the document table
+   scrolls, but has exactly ONE independent vertical scroll container. */
 @media (min-width:1101px) {
   .workspace-aside {
     position:sticky;
@@ -204,39 +220,17 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
     scrollbar-width:thin;
     scrollbar-color:#c4d2e6 transparent;
   }
-  .workspace-aside .inspector {
-    position:sticky;
-    top:0;
-    z-index:2;
-    flex-shrink:0;
-    max-height:clamp(215px,45dvh,460px);
-    overflow-y:auto;
-    overscroll-behavior-y:contain;
-    scrollbar-width:thin;
-    scrollbar-color:#c4d2e6 transparent;
-  }
-  .workspace-aside .document-card { flex-shrink:0; }
-  .workspace-aside .source-view {
-    height:clamp(320px,58dvh,560px);
-    max-height:none;
-  }
-  .workspace-aside:focus-visible,
-  .workspace-aside .inspector:focus-visible {
+  .workspace-aside:focus-visible {
     outline:2px solid #86a7ff;
     outline-offset:-2px;
   }
 }
-/* Narrow screens keep the inspector and source in normal document flow:
-   no fixed-height right rail and no inaccessible nested side scroll. */
+/* Tablet/mobile: both cards are in the normal page flow and scroll together
+   with the body; the source text never becomes a separate nested scroller. */
 @media (max-width:1100px) {
   .workspace-aside {
     position:static;
     height:auto;
-    max-height:none;
-    overflow:visible;
-  }
-  .workspace-aside .inspector {
-    position:static;
     max-height:none;
     overflow:visible;
   }
