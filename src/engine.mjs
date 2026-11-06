@@ -111,7 +111,7 @@ function deadlineCandidates(doc, proposed) {
   // Date selection is local to a delivery clause, not the entire paragraph.
   // A preceding payment, signing or acceptance date MUST NOT become delivery.
   const anchorRe = /(?:срок\s+(?:поставки|отгрузки)|дат[ауы]\s+(?:поставки|отгрузки)|постав(?:ить|ку|ка|ке)|отгруз(?:ить|ку|ка)|передать\s+товар)/giu;
-  const directRe = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|дат[ауы]\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на)/iu;
+  const directRe = /(?:не\s+позднее|до\s+|по\s+|срок\s+(?:поставки|отгрузки)\s*[:—–-]|дат[ауы]\s+(?:поставки|отгрузки)\s*[:—–-]|перенести[^\n]*\sна\s+|изменить\s+срок\s+поставки\s+на|\sна\s+)/iu;
   for (const block of doc.blocks) {
     // Only split clearly delimited independent clauses. Preserve the complete
     // original block for the user-facing quote and 1-based source interval.
