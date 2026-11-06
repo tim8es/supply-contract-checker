@@ -7,7 +7,7 @@ npm test
 node scripts/analyze.mjs --input documents --date 2026-03-10
 ```
 
-Current suite consists of **121 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
+Current suite consists of **135 Node test cases**, including an independently specified **24-scenario synthetic wording corpus**, grouped by:
 - basic acceptance (six supplied documents, expected amounts and deadlines);
 - exact provenance and non-invention of missing values;
 - new contract with different filename/number/amount/date;
@@ -24,6 +24,7 @@ Current suite consists of **121 Node test cases**, including an independently sp
 - optional penalty extractor: daily rate versus cap, signed/unsigned amendments, CLI and JSON;
 - a separate non-gating **36-case synthetic holdout** with precision/recall and a permanent list of failures;
 - adversarial payment/signing/acceptance dates preceding delivery in the same paragraph, and a legitimate contract price adjacent to an advance or penalty cap.
+- optional BYOK AI fallback: fake provider JSON, source-block reconstruction, CORS/auth errors, key not exported, unsigned/future documents excluded, manual-review badges and original source linking.
 
 GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: loads `/?demo=1`, verifies three rendered contracts, clicks the «До 01.04.2026» filter, opens the STN-101 amount with highlighted original citation, additionally opens the penalty rate and its original source, then uploads a new TXT via the File API and checks its extracted amount/date. A separate DOM smoke test and desktop/mobile screenshots accompany PR CI.
 
@@ -46,6 +47,8 @@ GitHub Actions runs real headless Chrome through the Chrome DevTools Protocol: l
 12. In a signed effective addendum, use `Изменить сумму договора с 1 200 000 рублей на 1 380 000 рублей` and `Перенести срок поставки с 15.04.2026 на 30.04.2026`: the parser must show **new** values, not old ones.
 
 13. In one paragraph put `Оплата до 10.04.2026. Поставка до 03.04.2026`: the active delivery date must be **03.04.2026**, not the earlier payment date. Separately check that `Цена договора 900 000 рублей. Аванс 270 000 рублей.` reports **900 000 рублей**.
+
+14. Expand AI panel, provide an OpenAI-compatible endpoint, model and user key; click explicitly to share eligible source blocks. AI candidates must be marked 'ИИ · проверить' and link to the exact paragraph. Reset must remove candidates and key. Browser E2E uses a **mock API** to test this without paid credentials; live provider CORS/JSON compatibility is not claimed.
 
 ## Known limitations and future QA
 
