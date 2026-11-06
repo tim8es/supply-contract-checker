@@ -80,7 +80,7 @@ function validContext(block,field,token) {
   return clauses.some(clause=>{
     if(!clause.includes(value)) return false;
     if(field==='penaltyRate') {
-      return /(?:неустойк|пен[ия]|штрафн(?:ой|ая)\s+ставк)/iu.test(clause) &&
+      return /(?:неустойк|пен[ия]|пеней|штрафн(?:ой|ая)\s+ставк)/iu.test(clause) &&
         /(?:за\s+каждый\s+день|ежедневн|в\s+день|за\s+сутки)/iu.test(clause) &&
         !/(?:не\s+более|не\s+выше|не\s+превышает|предельн|максимальн)/iu.test(clause);
     }
