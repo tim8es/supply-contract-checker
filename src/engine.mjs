@@ -473,9 +473,14 @@ export function analyze(files, asOf = '2026-03-10', options = {}) {
   return { rows: rows.sort((a, b) => a.id.localeCompare(b.id)),
     issues, documents: docs, asOf };
 }
-export function deliveriesBefore(rows, cutoff = '2026-04-01') {
-  if (!toIso(cutoff)) throw new Error('Некорректная дата границы');
-  return rows.filter(row => row.deadline && row.deadline.value < toIso(cutoff));
+/** Filter by an explicitly chosen deadline, never by a hardcoded date.
+ * Empty cutoff disables the filter. The comparison is strictly before (<).
+ */
+export function deliveriesBefore(rows, cutoff) {
+  if (!cutoff) return rows;
+  if (typeof cutoff !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(cutoff) || toIso(cutoff) !== cutoff)
+    throw new Error('Некорректная дата границы');
+  return rows.filter(row => row.deadline && row.deadline.value < cutoff);
 }
 export function toPublicResult(result) {
   return { asOf: result.asOf, contracts: result.rows, issues: result.issues,

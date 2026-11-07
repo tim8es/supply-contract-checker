@@ -23,7 +23,7 @@ test('signed amendments apply; drafts and supplier letters do not', () => {
   assert.equal(c.id, 'STN-103');
   assert.equal(c.amount, null);
   assert.equal(c.deadline.value, '2026-04-30');
-  assert.deepEqual(deliveriesBefore(data.rows).map(row => row.id), ['STN-102']);
+  assert.deepEqual(deliveriesBefore(data.rows,'2026-04-01').map(row => row.id), ['STN-102']);
 });
 
 test('evidence is exact original line with file and line number', () => {
@@ -68,4 +68,24 @@ test('conflicting signed amendments on the same date require review', () => {
   const row = analyze([base, amend, conflict]).rows[0];
   assert.equal(row.amount, null);
   assert.ok(row.review.some(item => item.includes('Противоречащие')));
+});
+
+test('delivery cutoff is fully configurable, optional and strictly before the given date',()=>{
+ const rows=analyze(inputs,'2026-03-10').rows;
+ assert.equal(deliveriesBefore(rows),rows,'no cutoff means no filter');
+ assert.deepEqual(deliveriesBefore(rows,'2026-03-20').map(x=>x.id),[],
+   'a delivery on the chosen date does not qualify');
+ assert.deepEqual(deliveriesBefore(rows,'2026-03-21').map(x=>x.id),['STN-102']);
+ assert.deepEqual(deliveriesBefore(rows,'2026-04-01').map(x=>x.id),['STN-102']);
+ assert.deepEqual(deliveriesBefore(rows,'2026-05-01').map(x=>x.id),['STN-101','STN-102','STN-103']);
+ assert.throws(()=>deliveriesBefore(rows,'2026-02-31'),/Некорректная дата/);
+ assert.throws(()=>deliveriesBefore(rows,'not-a-date'),/Некорректная дата/);
+});
+
+test('the same delivery threshold uses effective conditions on the chosen as-of date',()=>{
+ const before=analyze(inputs,'2026-02-28').rows;
+ const after=analyze(inputs,'2026-03-10').rows;
+ assert.deepEqual(deliveriesBefore(before,'2026-04-20').map(x=>x.id),
+   ['STN-101','STN-102']);
+ assert.deepEqual(deliveriesBefore(after,'2026-04-20').map(x=>x.id),['STN-102']);
 });

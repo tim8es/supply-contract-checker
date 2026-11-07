@@ -14,7 +14,7 @@ Run the commands: npm test, npm run benchmark, and node scripts/analyze.mjs --in
 | 1–3 | STN-101 amount 1,380,000 RUB and delivery 30.04.2026. Inspect citations and history. | Only the signed effective amendment supersedes original terms. |
 | 3–4 | STN-102 amount 840,000 RUB, delivery 20.03.2026, open supplier letter. | 27.03.2026 is only an unapproved proposal. |
 | 4–5 | STN-103 amount missing and deadline 30.04.2026. | Internal budget 600,000 RUB is not contract amount. |
-| 5–6 | Filter for deliveries before 01.04.2026. | Only STN-102 qualifies, with a pending date proposal. |
+| 5–6 | Set «Дата актуальности условий» to 10.03.2026 and «Срок поставки строго до» to 01.04.2026. | Only STN-102 qualifies, with a pending date proposal; deadline is a user-controlled filter, not a coded constant. |
 | 6–7 | Open optional penalty rate for STN-101 and original clause. | Rate is 0.1% per day, not the 10% maximum cap. |
 | 7–8 | Upload previously unseen TXT with a new number, amount and deadline. | No hardcoded contract identifiers or values. |
 | 8–9 | Run npm run benchmark, inspect all misses. | 100% precision / 84.21% recall on synthetic holdout, nine misses; not production accuracy. |

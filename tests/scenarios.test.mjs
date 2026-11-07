@@ -22,7 +22,7 @@ test('acceptance: exact answers to all four procurement questions', () => {
   assert.deepEqual(rows.map(x => x.id), ['STN-101', 'STN-102', 'STN-103']);
   assert.deepEqual(rows.map(x => amount(x)), [1380000, 840000, null]);
   assert.deepEqual(rows.map(x => deadline(x)), ['2026-04-30', '2026-03-20', '2026-04-30']);
-  assert.deepEqual(deliveriesBefore(rows).map(x => x.id), ['STN-102']);
+  assert.deepEqual(deliveriesBefore(rows, '2026-04-01').map(x => x.id), ['STN-102']);
   assert.equal(rows[0].proposals[0].deadline.value, '2026-05-10');
   assert.equal(rows[1].proposals[0].deadline.value, '2026-03-27');
   assert.equal(rows[0].amount.changedBy, '02_amendment_signed.txt');
