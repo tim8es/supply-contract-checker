@@ -34,9 +34,7 @@ a{color:inherit}
 h1{font-size:clamp(30px,3.1vw,42px);line-height:1.1;letter-spacing:-1.7px;font-weight:780;margin:0 0 12px}
 h1 .light{font-weight:400;color:#71829b}
 .subtitle{font-size:13px;color:#6b7c94;margin:0;max-width:700px}
-.date-control{background:#fff;border:1px solid var(--stroke);border-radius:11px;padding:12px 15px;min-width:191px;box-shadow:0 1px 3px #18263b08}
-.date-control label{font-size:11px;color:#6e8099;display:block;font-weight:700;margin-bottom:6px}
-.date-control input{border:0;background:transparent;color:#253b59;font-size:15px;font-weight:750;outline:none;width:100%}
+
 .upload-panel{background:linear-gradient(125deg,#eaf0fe,#f8fbff 68%,#f1f8ff);border:1px solid #d5e1f9;border-radius:15px;padding:22px;display:flex;gap:17px;align-items:center}
 .upload-icon{height:46px;width:46px;flex:0 0 46px;border-radius:11px;background:#d8e5ff;color:var(--blue);display:grid;place-items:center;font-size:30px;font-weight:700}
 .upload-copy{flex:1;display:flex;flex-direction:column;gap:5px}
@@ -128,7 +126,7 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
 .footer{display:flex;justify-content:space-between;gap:15px;padding:25px 0;color:#9aa8bb;font-size:10px}
 @media(max-width:1100px){.workspace{grid-template-columns:minmax(0,1fr)}.workspace-aside{display:grid;grid-template-columns:1fr 1fr;align-items:start}.topbar{padding:13px 24px}}
 @media(max-width:830px){.metrics{grid-template-columns:1fr 1fr}.page-heading{align-items:start}.page-heading h1 .light{display:block}.workspace-aside{grid-template-columns:1fr}}
-@media(max-width:620px){.content{padding:23px 14px}.topbar{padding:12px 14px}.topbar-tag{display:none}.page-heading{flex-direction:column}.date-control{width:100%}.upload-panel{flex-wrap:wrap;padding:17px}.upload-copy{flex:1 1 calc(100% - 70px)}.upload-actions{width:100%}.upload-actions .button{flex:1}.metrics{gap:9px}.metric{padding:15px}.metric strong{font-size:26px}.metric-label{font-size:11px}.card-head{padding:17px 15px}.card-head .button{padding:8px}.table-controls{padding:0 14px 15px}.search,.search input{width:100%;max-width:none}.segmented{width:100%;justify-content:space-around}.segmented button{flex:1}th,td{padding:12px 10px}.footer{flex-direction:column}.stack{padding:0 14px 15px}}
+@media(max-width:620px){.content{padding:23px 14px}.topbar{padding:12px 14px}.topbar-tag{display:none}.page-heading{flex-direction:column}.upload-panel{flex-wrap:wrap;padding:17px}.upload-copy{flex:1 1 calc(100% - 70px)}.upload-actions{width:100%}.upload-actions .button{flex:1}.metrics{gap:9px}.metric{padding:15px}.metric strong{font-size:26px}.metric-label{font-size:11px}.card-head{padding:17px 15px}.card-head .button{padding:8px}.table-controls{padding:0 14px 15px}.search,.search input{width:100%;max-width:none}.segmented{width:100%;justify-content:space-around}.segmented button{flex:1}th,td{padding:12px 10px}.footer{flex-direction:column}.stack{padding:0 14px 15px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
 
@@ -234,4 +232,21 @@ blockquote{font-size:12px;line-height:1.7;color:#3f5676;margin:0;white-space:pre
     max-height:none;
     overflow:visible;
   }
+}
+
+/* Two independent user-controlled dates: historic applicability vs. deadline
+   filtering. A blank deadline means no filtering; never hardcode its value. */
+.table-controls{align-items:stretch;gap:13px}
+.date-filters{width:100%;display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;background:#f7faff;border:1px solid #e5ecf6;border-radius:10px;padding:13px}
+.date-filter{display:flex;flex:1 1 190px;min-width:180px;flex-direction:column;gap:6px}
+.date-filter span{font-size:11px;font-weight:800;color:#3c5374}
+.date-filter input{display:block;max-width:100%;width:100%;min-height:38px;padding:8px 10px;border:1px solid #cfdaeb;border-radius:8px;background:#fff;color:#253b59;font-size:13px;font-weight:700;color-scheme:light}
+.date-filter small{font-size:10px;line-height:1.35;color:#798ba5;font-weight:500}
+#clear-delivery-cutoff{margin-bottom:16px;min-height:38px}
+.filter-secondary{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;flex-wrap:wrap}
+@media(max-width:620px){
+ .date-filters{padding:11px;gap:10px}
+ .date-filter{min-width:0;flex:1 1 100%}
+ #clear-delivery-cutoff{width:100%;margin-bottom:0}
+ .filter-secondary .registry-tools{flex:1}
 }
