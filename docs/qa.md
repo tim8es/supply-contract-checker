@@ -34,6 +34,14 @@ rail with **one shared scroll** for the inspector and the original TXT.
 The inspector has full natural height even with a long injected history;
 neither inspector nor original TXT has an independent scrollbar.
 Scrolling the rail must move both cards by the same distance.
+The browser test also scrolls the shared right rail to its bottom,
+then verifies that **«↗ Проверить источник»** returns to the full inspector
+without switching the TXT. Explicit **«Показать в исходном тексте ↗»**
+must reveal the actual highlighted line in the visible rail viewport
+(not just a file selector or hidden highlight). A second field click after
+the jump must return to the inspector. The mobile test also verifies
+page navigation to inspector and to the specific highlighted original line.
+
 At mobile 430×900 the cards return to ordinary document flow with no
 nested scrolling. Tests inspect computed CSS and geometry in headless Chrome.
 

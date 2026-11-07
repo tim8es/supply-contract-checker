@@ -138,7 +138,12 @@ async function main() {
     const missingActions=await evaluate("({amount:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"amount\"]'),penalty:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"penaltyRate\"]')})");
     assert(missingActions.amount && missingActions.penalty,
       'every missing registry cell has an AI button, including no-price and penalty');
+    const railAtBottom=await evaluate("(()=>{const rail=document.querySelector('.workspace-aside');rail.scrollTop=rail.scrollHeight;return {before:rail.scrollTop,max:rail.scrollHeight-rail.clientHeight}})()");
+    assert(railAtBottom.before>20,'set up right evidence rail below inspector: '+JSON.stringify(railAtBottom));
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(2) button').click()");
+    const inspectorJump=await evaluate("(()=>{const rail=document.querySelector('.workspace-aside');const inspect=rail.querySelector('.inspector');const rect=inspect.getBoundingClientRect();const outer=rail.getBoundingClientRect();return {railTop:rail.scrollTop,inspectorTop:rect.top,railViewportTop:outer.top,visible:rect.top>=outer.top-3 && rect.top<innerHeight}})()");
+    assert(inspectorJump.railTop<5 && inspectorJump.visible,
+      'clicking Проверить источник reveals citation at the top of the shared rail: '+JSON.stringify(inspectorJump));
     const proof = await evaluate("({file:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText,highlights:document.querySelectorAll('.source-line.highlight').length})");
     assert(proof.file === '01_contract.txt', 'source panel stays on previous document');
     assert(proof.quote.includes('1 380 000'), 'cited clause visible in inspector without source jump');
@@ -147,11 +152,20 @@ async function main() {
     const explicitSource=await evaluate("({file:document.querySelector('#document-select').value,highlights:document.querySelectorAll('.source-line.highlight').length})");
     assert(explicitSource.file === '02_amendment_signed.txt' && explicitSource.highlights>=1,
       'only explicit source navigation opens original TXT');
+    const sourceJump=await evaluate("(()=>{const rail=document.querySelector('.workspace-aside');const line=rail.querySelector('.source-line.highlight');const lineRect=line?.getBoundingClientRect();const railRect=rail.getBoundingClientRect();return {lineVisible:!!lineRect && lineRect.top>=railRect.top-3 && lineRect.bottom<=railRect.bottom+3,railTop:rail.scrollTop,lineTop:lineRect?.top,railViewportTop:railRect.top,railViewportBottom:railRect.bottom}})()");
+    assert(sourceJump.lineVisible,
+      'Показать в исходном тексте must scroll to the highlighted citation, not the file selector: '+JSON.stringify(sourceJump));
     await evaluate("document.querySelector('#document-select').value='01_contract.txt';document.querySelector('#document-select').dispatchEvent(new Event('change',{bubbles:true}))");
     const timeline = await evaluate("document.querySelector('.term-history')?.innerText || ''");
     const normalizedTimeline = timeline.replace(/\s/gu, ' ');
     assert(normalizedTimeline.includes('1 200 000') && normalizedTimeline.includes('1 380 000'), 'old and new amount timeline: ' + JSON.stringify(normalizedTimeline));
     assert(timeline.includes('Действует') && timeline.includes('Исходное условие'), 'history status');
+    // Check another value only AFTER verifying the amount history; clicking
+    // another field intentionally changes the inspector's history context.
+    await evaluate("document.querySelector('#rows tr:first-child td:nth-child(3) .evidence-link').click()");
+    const repeatInspector=await evaluate("({top:document.querySelector('.workspace-aside').scrollTop,text:document.querySelector('#inspect-content blockquote')?.textContent||''})");
+    assert(repeatInspector.top<5 && repeatInspector.text.includes('30.04.2026'),
+      'new source click after a TXT jump returns to the inspector at the top: '+JSON.stringify(repeatInspector));
     await evaluate("document.querySelector('#rows tr:first-child td:nth-child(4) button').click()");
     const penaltyProof=await evaluate("({value:document.querySelector('#inspect-content .fact-value')?.innerText,source:document.querySelector('#document-select').value,quote:document.querySelector('#inspect-content blockquote')?.innerText})");
     assert(penaltyProof.source === '01_contract.txt', 'inspector does not automatically change original TXT');
@@ -198,6 +212,10 @@ async function main() {
       {width:430,height:900,deviceScaleFactor:1,mobile:true});
     const mobileAudit=await evaluate("(async()=>{\n  await new Promise(resolve=>requestAnimationFrame(resolve));\n  const side=document.querySelector('.workspace-aside');\n  const inspector=side.querySelector('.inspector');\n  const style=getComputedStyle(side);\n  const iStyle=getComputedStyle(inspector);\n  const sourceStyle=getComputedStyle(side.querySelector('.source-view'));\n  const box=side.getBoundingClientRect();\n  const ok=innerWidth<=1100 && style.position==='static' &&\n    style.maxHeight==='none' && iStyle.position==='static' &&\n    iStyle.overflowY==='visible' && sourceStyle.overflowY==='visible' &&\n    style.overflowY==='visible' && box.width>0 &&\n    box.left>=-1 && box.right<=innerWidth+1;\n  return {ok,width:innerWidth,position:style.position,height:style.height,\n    overflow:style.overflowY,rect:box.toJSON()};\n})()");
     assert(mobileAudit.ok,'mobile inspector returns to natural page flow: '+JSON.stringify(mobileAudit));
+    const mobileNavigation=await evaluate("(()=>{const row=[...document.querySelectorAll('#rows tr')].find(r=>r.textContent.includes('NLP-205'));const btn=row?.querySelector('td:nth-child(2) .evidence-link');if(!btn)return {button:false};window.scrollTo(0,0);btn.click();const inspect=document.querySelector('.workspace-aside .inspector').getBoundingClientRect();const inspectorVisible=inspect.top>=-5 && inspect.top<innerHeight*.3;const jump=document.querySelector('#inspect-content .inspect-action');jump?.click();const line=document.querySelector('.source-line.highlight')?.getBoundingClientRect();return {button:true,inspectorVisible,sourceVisible:!!line && line.top>=-5 && line.bottom<=innerHeight+5,file:document.querySelector('#document-select').value,inspectorTop:inspect.top,lineTop:line?.top}})()");
+    assert(mobileNavigation.button && mobileNavigation.inspectorVisible &&
+      mobileNavigation.sourceVisible && mobileNavigation.file==='ai_medical_amendment_signed_205.txt',
+      'mobile source actions scroll the PAGE to inspector and then exact highlighted citation: '+JSON.stringify(mobileNavigation));
     console.log('Browser E2E OK: historical as-of date, single-scroll full-height evidence rail, mobile flow and BYOK AI.');
 
   } finally {

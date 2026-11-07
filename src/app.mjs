@@ -63,6 +63,28 @@ function message(text, isError = false) {
 }
 function setMetric(id, value) { $(id).textContent = String(value); }
 
+/**
+ * Navigate inside the ONE shared evidence-rail scrollbar on desktop.
+ * The inspector and original TXT must never create independent scroll areas.
+ * On smaller screens the cards are in normal document flow instead.
+ */
+function revealEvidence(target, {center=false}={}) {
+  const rail=document.querySelector('.workspace-aside');
+  if(!rail || !target) return;
+  if(!window.matchMedia('(min-width: 1101px)').matches) {
+    target.scrollIntoView({block:center?'center':'start',behavior:'instant'});
+    return;
+  }
+  // If the user has scrolled past the workspace, first make the entire
+  // sticky rail visible in the browser viewport.
+  rail.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+  // scrollIntoView on a descendant can move multiple scroll containers,
+  // so explicitly move ONLY the shared rail using measured coordinates.
+  const railTop=rail.getBoundingClientRect().top;
+  const targetTop=target.getBoundingClientRect().top;
+  const offset=center?Math.min(200,rail.clientHeight*.34):0;
+  rail.scrollTop=Math.max(0,rail.scrollTop+targetTop-railTop-offset);
+}
 function showDocument(name, from = 0, to = from) {
   if (!analysis) return;
   const doc = analysis.documents.find(x => x.name === name);
@@ -77,9 +99,12 @@ function showDocument(name, from = 0, to = from) {
     source.append(div);
   }
   if (from) {
-    const target = [...source.querySelectorAll('.source-line')].find(x => x.dataset.line === String(from));
-    target?.scrollIntoView({ block: 'center', behavior: 'instant' });
-  } else source.scrollTop = 0;
+    const target=[...source.querySelectorAll('.source-line')]
+      .find(x=>x.dataset.line===String(from));
+    // Highlighted paragraph must be visible, not merely highlighted far
+    // below the viewport; use the SAME rail as the citation inspector.
+    if(target) revealEvidence(target,{center:true});
+  }
 }
 
 function renderFieldHistory(row, label) {
@@ -146,9 +171,7 @@ function inspect(row, field, value, evidence, description) {
     const jump = el('button', 'Показать в исходном тексте ↗', 'inspect-action');
     jump.type = 'button';
     jump.addEventListener('click', () => {
-      showDocument(evidence.file, evidence.line, evidence.endLine || evidence.line);
-      $('source').focus({ preventScroll: true });
-      $('document-select').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showDocument(evidence.file,evidence.line,evidence.endLine || evidence.line);
     });
     content.append(jump);
     // The verified quote is already visible in the inspector. Opening a
@@ -159,6 +182,9 @@ function inspect(row, field, value, evidence, description) {
     if (row?.review?.length) content.append(el('p', row.review.join(' · '), 'hint'));
   }
   renderFieldHistory(row, field);
+  // A click in the left table can happen while the independent right rail
+  // is scrolled to the bottom. Always reveal the new citation at its top.
+  revealEvidence(document.querySelector('.workspace-aside .inspector'));
 }
 
 function sourceButton(row, field, data, format) {
