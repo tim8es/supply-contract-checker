@@ -239,7 +239,8 @@ function valueCell(row, field, formatter, label) {
 function rowsVisible() {
   if (!analysis) return [];
   let rows = analysis.rows;
-  if (filter === 'before') rows = deliveriesBefore(rows);
+  const cutoff=$('delivery-cutoff').value;
+  if(cutoff) rows=deliveriesBefore(rows,cutoff);
   if (filter === 'review') rows = rows.filter(x => x.review.length > 0);
   if (search.trim()) {
     const term = search.toLocaleLowerCase('ru');
@@ -280,8 +281,9 @@ function renderTable() {
     td.colSpan = 5; tr.append(td); container.append(tr);
   }
   $('table-count').textContent = 'Показано ' + rows.length + ' из ' + analysis.rows.length +
-    ' · проверка на ' + dateLabel(analysis.asOf) +
-    (filter === 'before' ? ' · есть несогласованные переносы — см. ниже' : '');
+    ' · условия на ' + dateLabel(analysis.asOf) +
+    ($('delivery-cutoff').value ? ' · поставка строго до '+
+      dateLabel($('delivery-cutoff').value) : ' · без ограничения срока');
 }
 function proposalLine(box, row, field, value, label, formatter) {
   if (!value) return;
@@ -363,6 +365,16 @@ function recalculate() {
   } catch (error) { message('Не удалось обработать файлы: ' + error.message, true); }
 }
 
+function resetRegistryFilters() {
+  filter='all';
+  search='';
+  $('search').value='';
+  $('delivery-cutoff').value='';
+  $('clear-delivery-cutoff').disabled=true;
+  document.querySelectorAll('[data-filter]').forEach(btn=>
+    btn.classList.toggle('active',btn.dataset.filter==='all'));
+}
+
 async function loadFiles(files) {
   if (!files.length) return;
   if (files.length > MAX_FILES) return message('Можно загрузить не более ' + MAX_FILES + ' файлов за один раз.', true);
@@ -375,13 +387,29 @@ async function loadFiles(files) {
   try {
     invalidateAI();
     inputs = await Promise.all(files.map(async f => ({ name: f.name, text: await f.text() })));
-    filter = 'all'; search = ''; $('search').value = '';
-    document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'all'));
+    resetRegistryFilters();
     recalculate();
   } catch (error) { message('Ошибка чтения TXT: ' + error.message, true); }
 }
 $('files').addEventListener('change', e => loadFiles([...e.target.files]));
-$('asof').addEventListener('change', () => { invalidateAI(); recalculate(); });
+$('asof').addEventListener('change', () => {
+  if(!$('asof').value) {
+    if(analysis) $('asof').value=analysis.asOf;
+    message('Выберите дату актуальности условий.',true);
+    return;
+  }
+  invalidateAI();
+  recalculate();
+});
+$('delivery-cutoff').addEventListener('change',()=>{
+  $('clear-delivery-cutoff').disabled=!$('delivery-cutoff').value;
+  if(analysis) {renderTable();renderProposals();}
+});
+$('clear-delivery-cutoff').addEventListener('click',()=>{
+  $('delivery-cutoff').value='';
+  $('clear-delivery-cutoff').disabled=true;
+  if(analysis) {renderTable();renderProposals();}
+});
 $('document-select').addEventListener('change', e => showDocument(e.target.value));
 $('search').addEventListener('input', e => { search = e.target.value; renderTable(); renderProposals(); });
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
@@ -400,8 +428,8 @@ $('demo').addEventListener('click', async () => {
       return { name, text: await response.text() };
     }));
     invalidateAI();
-    inputs = data; filter = 'all'; search = ''; $('search').value = '';
-    document.querySelectorAll('[data-filter]').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'all'));
+    inputs=data;
+    resetRegistryFilters();
     recalculate();
   } catch (error) { message('Учебные файлы недоступны: ' + error.message, true); }
 });
@@ -427,9 +455,7 @@ $('ai-example').addEventListener('click', async () => {
     // Do not replace existing documents on a partial network failure.
     invalidateAI();
     inputs=docs;
-    filter='all'; search=''; $('search').value='';
-    document.querySelectorAll('[data-filter]').forEach(btn=>
-      btn.classList.toggle('active',btn.dataset.filter==='all'));
+    resetRegistryFilters();
     recalculate();
     message('Загружены '+analysis.rows.length+' реалистичных учебных договора и '+
       (analysis.documents.length-analysis.rows.length)+
