@@ -128,13 +128,35 @@ async function main() {
     let rows = await evaluate("document.querySelector('#rows').innerText");
     assert(rows.includes('STN-101') && rows.includes('STN-102') && rows.includes('STN-103'), 'demo table');
 
-    await evaluate("document.querySelector('[data-filter=before]').click()");
-    rows = await evaluate("document.querySelector('#rows').innerText");
-    assert(rows.includes('STN-102') && !rows.includes('STN-101') && !rows.includes('STN-103'), 'delivery filter');
+    const initialDates=await evaluate("({asof:document.querySelector('#asof').value,cutoff:document.querySelector('#delivery-cutoff').value,asofInFilters:!!document.querySelector('.date-filters #asof'),resetDisabled:document.querySelector('#clear-delivery-cutoff').disabled,fixedButton:!!document.querySelector('[data-filter=before]')})");
+    assert(initialDates.asof==='2026-03-10' && initialDates.cutoff==='' &&
+      initialDates.asofInFilters && initialDates.resetDisabled && !initialDates.fixedButton,
+      'independent date filter controls start without a hardcoded delivery threshold: '+JSON.stringify(initialDates));
+    await evaluate("(()=>{const input=document.querySelector('#delivery-cutoff');input.value='2026-04-01';input.dispatchEvent(new Event('change',{bubbles:true}))})()");
+    rows=await evaluate("document.querySelector('#rows').innerText");
+    assert(rows.includes('STN-102') && !rows.includes('STN-101') && !rows.includes('STN-103'),
+      'user-defined delivery cutoff 01.04 selects only STN-102');
     const filteredProposals = await evaluate("document.querySelector('#proposals').innerText");
-    assert(filteredProposals.includes('STN-102') && !filteredProposals.includes('STN-101'), 'proposal filter relevance');
-
-    await evaluate("document.querySelector('[data-filter=all]').click()");
+    assert(filteredProposals.includes('STN-102') && !filteredProposals.includes('STN-101'),
+      'proposals follow user-selected delivery cutoff');
+    await evaluate("(()=>{const input=document.querySelector('#delivery-cutoff');input.value='2026-03-20';input.dispatchEvent(new Event('change',{bubbles:true}))})()");
+    rows=await evaluate("document.querySelector('#rows').innerText");
+    assert(!rows.includes('STN-102') && rows.includes('Нет договоров'),
+      'strict before comparison excludes a contract due exactly on the cutoff');
+    await evaluate("(()=>{const input=document.querySelector('#delivery-cutoff');input.value='2026-04-20';input.dispatchEvent(new Event('change',{bubbles:true}));const asof=document.querySelector('#asof');asof.value='2026-02-28';asof.dispatchEvent(new Event('change',{bubbles:true}))})()");
+    rows=await evaluate("document.querySelector('#rows').innerText");
+    assert(rows.includes('STN-101') && rows.includes('STN-102') && !rows.includes('STN-103'),
+      'same cutoff selects original STN-101 delivery before effective amendment');
+    await evaluate("(()=>{const asof=document.querySelector('#asof');asof.value='2026-03-10';asof.dispatchEvent(new Event('change',{bubbles:true}))})()");
+    rows=await evaluate("document.querySelector('#rows').innerText");
+    assert(!rows.includes('STN-101') && rows.includes('STN-102') && !rows.includes('STN-103'),
+      'changing as-of recalculates delivery while keeping user cutoff');
+    await evaluate("document.querySelector('#clear-delivery-cutoff').click()");
+    rows=await evaluate("document.querySelector('#rows').innerText");
+    const clearedCutoff=await evaluate("({cutoff:document.querySelector('#delivery-cutoff').value,disabled:document.querySelector('#clear-delivery-cutoff').disabled})");
+    assert(rows.includes('STN-101') && rows.includes('STN-102') && rows.includes('STN-103') &&
+      !clearedCutoff.cutoff && clearedCutoff.disabled,
+      'clear delivery-date filter restores all agreements without changing as-of');
     const missingActions=await evaluate("({amount:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"amount\"]'),penalty:!!document.querySelector('[data-contract=\"STN-103\"][data-ai-field=\"penaltyRate\"]')})");
     assert(missingActions.amount && missingActions.penalty,
       'every missing registry cell has an AI button, including no-price and penalty');
@@ -216,7 +238,7 @@ async function main() {
     assert(mobileNavigation.button && mobileNavigation.inspectorVisible &&
       mobileNavigation.sourceVisible && mobileNavigation.file==='ai_medical_amendment_signed_205.txt',
       'mobile source actions scroll the PAGE to inspector and then exact highlighted citation: '+JSON.stringify(mobileNavigation));
-    console.log('Browser E2E OK: historical as-of date, single-scroll full-height evidence rail, mobile flow and BYOK AI.');
+    console.log('Browser E2E OK: independent configurable date filters, historical as-of date, single-scroll evidence rail, mobile flow and BYOK AI.');
 
   } finally {
     ws?.close();
