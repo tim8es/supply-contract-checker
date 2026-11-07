@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f5f7fa">
   <meta name="description" content="Проверка действующих условий договоров поставки с доказательствами из исходных TXT-документов.">
   <title>Semantic TextNavigator — условия поставок</title>
-  <link rel="stylesheet" href="./styles.css?v=single-scroll-20261106">
-  <script type="module" src="./src/app.mjs?v=source-navigation-20261107"></script>
+  <link rel="stylesheet" href="./styles.css?v=date-filters-20261107">
+  <script type="module" src="./src/app.mjs?v=date-filters-20261107"></script>
 </head>
 <body>
   <div class="shell">
@@ -28,10 +28,6 @@
           <p class="overline">РАБОЧАЯ ОБЛАСТЬ ЗАКУПОК <span class="slash">/</span> РЕЕСТР</p>
           <h1>Условия поставок <span class="light">под контролем.</span></h1>
           <p class="subtitle">Действующие значения, история изменений и основания — из исходных документов, без догадок.</p>
-        </div>
-        <div class="date-control">
-          <label for="asof">На дату проверки</label>
-          <input id="asof" type="date" value="2026-03-10" aria-label="Дата проверки">
         </div>
       </div>
 
@@ -91,13 +87,27 @@
             </section>
             <div id="ai-feedback" class="inline-ai-feedback" role="status" aria-live="polite" hidden></div>
             <div class="table-controls">
-              <div class="segmented" role="group" aria-label="Фильтр договоров">
-                <button type="button" class="active" data-filter="all">Все</button>
-                <button type="button" data-filter="before">До 01.04.2026</button>
-                <button type="button" data-filter="review">На проверку</button>
+              <div class="date-filters" role="group" aria-label="Фильтры по датам">
+                <label class="date-filter">
+                  <span>Дата актуальности условий</span>
+                  <input id="asof" type="date" value="2026-03-10" required aria-describedby="asof-hint">
+                  <small id="asof-hint">На какой день определяем действующие условия</small>
+                </label>
+                <label class="date-filter">
+                  <span>Срок поставки строго до</span>
+                  <input id="delivery-cutoff" type="date" aria-describedby="delivery-cutoff-hint">
+                  <small id="delivery-cutoff-hint">Не выбрано — показываются все сроки</small>
+                </label>
+                <button type="button" id="clear-delivery-cutoff" class="button ghost" disabled>Сбросить срок</button>
               </div>
-              <div class="registry-tools">
-                <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
+              <div class="filter-secondary">
+                <div class="segmented" role="group" aria-label="Статус договоров">
+                  <button type="button" class="active" data-filter="all">Все</button>
+                  <button type="button" data-filter="review">На проверку</button>
+                </div>
+                <div class="registry-tools">
+                  <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Номер или поставщик" aria-label="Поиск по договорам"></label>
+                </div>
               </div>
             </div>
             <div class="table-scroll">
